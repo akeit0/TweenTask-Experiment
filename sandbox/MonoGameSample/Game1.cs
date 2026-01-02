@@ -27,8 +27,8 @@ namespace MonoGameSample
         private bool spacePressed;
         public Texture2D Texture;
         private SpriteFont hudFont;
-        private int AliveCount => spriteObjects.Count;
-        private int DeadCount { get; set; }
+        private int MoveTweenCount { get; set; }
+        private int DeletingCount { get; set; }
         private int TotalCount { get; set; }
 
         public Game1()
@@ -45,10 +45,10 @@ namespace MonoGameSample
             soundFX = new();
             Texture = new(_graphics.GraphicsDevice, 1, 1);
             hudFont = Content.Load<SpriteFont>("Fonts/Hud");
-            Texture.SetData(new[] { Color.White });
+            Texture.SetData([Color.White]);
         }
 
-        public static Color HsvToRgb(double h, double s, double v)
+        static Color HsvToRgb(double h, double s, double v)
         {
             h = h % 360; // Ensure hue is within 0-360
             if (h < 0) h += 360;
@@ -120,11 +120,13 @@ namespace MonoGameSample
                 {
                     var newObj = new SimpleSpriteObject(Texture)
                     {
-                        Position = center + new Vector2(bounds.Width/2f,bounds.Height/2f) * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
+                        Position = center + new Vector2(bounds.Width / 2f, bounds.Height / 2f) *
+                            new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
                         Size = 10 + 20 * Rand.NextSingle(),
                         Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
                     };
                     TotalCount++;
+                    MoveTweenCount++;
                     spriteObjects.Add(newObj);
 
                     TweenTask.Create(newObj.Position,
@@ -133,6 +135,7 @@ namespace MonoGameSample
                         .WithEase(Ease.InBounce)
                         .WithOnEnd(newObj, (o, result) =>
                         {
+                            MoveTweenCount--;
                             switch (result.ResultType)
                             {
                                 case TweenResultType.Complete:
@@ -143,8 +146,8 @@ namespace MonoGameSample
                                     break;
                                 case TweenResultType.Cancel:
                                 {
-                                    soundFX.PlayWave(220 * MathF.Pow(2, Rand.NextSingle() - 0.5f), 200, WaveType.Sin,
-                                        0.2f);
+                                    soundFX.PlayWave(0, 100, WaveType.Noise,
+                                        0.1f);
                                 }
                                     break;
                             }
@@ -171,19 +174,29 @@ namespace MonoGameSample
         private async ValueTask Delete(SimpleSpriteObject obj)
         {
             spriteObjectsToDelete.Add(obj);
-            await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
-                .WithOnEnd(this, (game, result) =>
-                {
-                    if (result.ResultType == TweenResultType.Complete)
+            DeletingCount++;
+            if (Rand.NextDouble() < 0.5)
+            {
+                await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
+                    .WithOnEnd(this, (game, result) =>
                     {
-                        game.DeadCount++;
-                    }
-                    else
-                    {
-                        Console.WriteLine("Failed to delete");
-                    }
-                  
-                }).Bind(obj, (o, size) => o.Size = size);
+                        if (result.ResultType == TweenResultType.Complete)
+                        {
+                            game.DeletingCount--;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Failed to delete");
+                        }
+                    }).Bind(obj, (o, size) => o.Size = size);
+            }
+            else
+            {
+                await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutElastic)
+                    .Bind(obj, (o, size) => o.Size = size);
+                DeletingCount--;
+            }
+
             obj.Dispose();
             spriteObjects.Remove(obj);
         }
@@ -193,7 +206,9 @@ namespace MonoGameSample
             GraphicsDevice.Clear(Color.CornflowerBlue);
             _spriteBatch.Begin();
             foreach (var spriteObject in spriteObjects) spriteObject.Draw(_spriteBatch);
-            _spriteBatch.DrawString(hudFont, $"Alive: {AliveCount}, Deleted: {DeadCount}, Total: {TotalCount}", default, Color.White);
+            _spriteBatch.DrawString(hudFont,
+                $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", default,
+                Color.White);
 
             _spriteBatch.End();
             base.Draw(gameTime);
