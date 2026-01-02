@@ -1,87 +1,74 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using TweenTasks.Internal;
 
-namespace TweenTasks;
-
-public readonly partial struct TweenTask
+namespace TweenTasks
 {
-    public static TweenTask Create(double startTime, double endTime,Action<object?,double> callback,object? state, TweenRunner tweenRunner,
-        CancellationToken cancellationToken)
+    public readonly struct TweenTask
     {
-        var promise = TweenPromise.Create(startTime,
-            startTime + endTime, callback,state, cancellationToken, out var token);
-        tweenRunner.Register(promise);
-        return new TweenTask(
-            promise,
-            token);
-    }
+        public static TweenBuilder<T, TAdapter> CreateFromAdapter<T, TAdapter>(TAdapter adapter, double duration)
+            where TAdapter : ITweenAdapter<T>
+        {
+            return TweenBuilder<T, TAdapter>.Create(adapter, duration);
+        }
 
-    public static TweenTask Create(double endTime, Action<object?,double> callback,object? state, TweenRunner tweenRunner,
-        CancellationToken cancellationToken = default)
-    {
-        var startTime = tweenRunner.GetCurrentTime();
-        var promise = TweenPromise.Create(startTime,
-            startTime + endTime, callback,state, cancellationToken, out var token);
-        tweenRunner.Register(promise);
-        return new TweenTask(
-            promise,
-            token);
-    }
-    public static TweenTask Create<TState>(double endTime, Action<TState,double> callback,TState state, TweenRunner tweenRunner,
-        CancellationToken cancellationToken = default) where TState : class
-    {
-        return Create(endTime, Unsafe.As<Action<object?,double>>(callback), state, tweenRunner, cancellationToken);
-    }
-    
-    readonly TweenPromise promise;
-    private readonly short token;
+        public static TweenBuilder<float, FloatTweenAdapter> Create(float start, float end, double duration)
+        {
+            return TweenBuilder<float, FloatTweenAdapter>.Create(new(start, end), duration);
+        }
 
-    private TweenTask(TweenPromise promise, short token)
-    {
-        this.promise = promise;
-        this.token = token;
-    }
+        private readonly TweenPromise promise;
+        private readonly short token;
 
-    public TweenTask WithOnComplete<TState>(Action<TState,TweenResultType> continuation, TState state) where TState : class
-    {
-        promise.OnCompletedManual(Unsafe.As<Action<object?,TweenResultType>>(continuation), state, token);
-        return this;
-    }
-    
-    public TweenTask WithOnComplete(Action<object?,TweenResultType> continuation, object? state) 
-    {
-        promise.OnCompletedManual(Unsafe.As<Action<object?,TweenResultType>>(continuation), state, token);
-        return this;
-    }
+        internal TweenTask(TweenPromise promise, short token)
+        {
+            this.promise = promise;
+            this.token = token;
+        }
 
-    public bool TryCancel()
-    {
-        return  promise.TryCancel(token);
-    }
+        public TweenTask WithOnComplete<TState>(TState state, Action<TState, TweenResultType> continuation)
+            where TState : class
+        {
+            promise.OnCompletedManual(Unsafe.As<Action<object?, TweenResultType>>(continuation), state, token);
+            return this;
+        }
 
-    public bool TryComplete()
-    {
-       return promise.TryComplete(token);
-    }
+        public TweenTask WithOnComplete(Action<TweenResultType> continuation)
+        {
+            promise.OnCompletedManual((state, result) => Unsafe.As<Action<TweenResultType>>(state)(result),
+                continuation,
+                token);
+            return this;
+        }
 
-    public ValueTask AsValueTask()
-    {
-        return new ValueTask(promise, token);
-    }
+        public void SetPlaybackSpeed(double speed)
+        {
+            promise.PlaybackSpeed = speed;
+        }
 
-    public void Forget(){}
-    public ValueTaskAwaiter GetAwaiter()
-    {
-        return new ValueTask(promise, token).GetAwaiter();
-    }
-}
+        public bool TryCancel()
+        {
+            return promise.TryCancel(token);
+        }
 
-public enum TweenResultType:byte
-{
-    Complete,
-    Cancel
+        public bool TryComplete()
+        {
+            return promise.TryComplete(token);
+        }
+
+        public ValueTask AsValueTask()
+        {
+            return new(promise, token);
+        }
+
+        public void Forget()
+        {
+        }
+
+        public ValueTaskAwaiter GetAwaiter()
+        {
+            return new ValueTask(promise, token).GetAwaiter();
+        }
+    }
 }

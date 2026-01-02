@@ -2,165 +2,172 @@ using System;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 
-namespace TweenTasks.Internal;
-
-internal class TweenPromise : IValueTaskSource, ITweenRunnerWorkItem, ITaskPoolNode<TweenPromise>
+namespace TweenTasks.Internal
 {
-    CancellationToken cancellationToken;
-    TweenTaskCompletionSourceCore core;
-    Action<object?, double> action;
-    object? state;
-    double startTime;
-    double endTime;
-
-    static TaskPool<TweenPromise> pool;
-
-    private TweenPromise next;
-    ref TweenPromise ITaskPoolNode<TweenPromise>.NextNode => ref next;
-
-    private TweenPromise()
+    internal abstract class TweenPromise : IValueTaskSource
     {
-    }
+        protected CancellationToken cancellationToken;
+        protected TweenTaskCompletionSourceCore core;
+        protected double delay;
+        protected double duration;
+        protected Ease ease;
+        public double PlaybackSpeed;
+        protected object? state;
+        protected double time;
 
-    public static TweenPromise Create(double startTime, double endTime, Action<object?, double> action, object? state,
-        CancellationToken cancellationToken, out short token)
-    {
-        if (!pool.TryPop(out var promise))
+        public void GetResult(short token)
         {
-            promise = new TweenPromise();
+            try
+            {
+                core.GetResult(token);
+            }
+            finally
+            {
+                TryReturn();
+            }
         }
 
-        promise.startTime = startTime;
-        promise.endTime = endTime;
-        promise.action = action;
-        promise.state = state;
-        promise.cancellationToken = cancellationToken;
-        promise.core.Activate();
-        token = promise.core.Version;
+        public ValueTaskSourceStatus GetStatus(short token)
+        {
+            return core.GetStatus(token);
+        }
 
-        return promise;
+        public void OnCompleted(Action<object> continuation, object state, short token,
+            ValueTaskSourceOnCompletedFlags flags)
+        {
+            core.OnCompleted(continuation, state, token);
+        }
+
+        public abstract bool TryCancel(short token);
+        public abstract bool TryComplete(short token);
+        public abstract bool TryReturn();
+
+        public void OnCompletedManual(Action<object?, TweenResultType> continuation, object? state, short token)
+        {
+            core.OnCompletedManual(continuation, state, token);
+        }
     }
 
-    public bool MoveNext(double currentTime)
+    internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
+        ITaskPoolNode<TweenPromise<T, TAdapter>>
+        where TAdapter : ITweenAdapter<T>
     {
-        if (!core.IsActive)
+        private static TaskPool<TweenPromise<T, TAdapter>> pool;
+        private Action<object?, T> action = null!;
+        private TAdapter adapter = default!;
+
+        private TweenPromise<T, TAdapter>? next;
+        ref TweenPromise<T, TAdapter>? ITaskPoolNode<TweenPromise<T, TAdapter>>.NextNode => ref next;
+
+        public bool MoveNext(double deltaTime)
         {
+            if (!core.IsActive) return false;
+
+            time += PlaybackSpeed * deltaTime;
+            var position = time - delay;
+            var progress = Math.Min(1, position / duration);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                if (core.IsSetContinuationWithAwait)
+                    core.TrySetCanceled(cancellationToken);
+                else
+                    ReturnWithContinuation(TweenResultType.Cancel);
+
+                return false;
+            }
+
+            if (delay > time) return true;
+
+            action(state, adapter.Evaluate(EaseUtility.Evaluate(progress, ease)));
+            if (progress < 1) return true;
+
+            adapter.Dispose();
+
+            if (core.IsSetContinuationWithAwait)
+            {
+                core.TrySetResult();
+                return false;
+            }
+
+
+            ReturnWithContinuation(TweenResultType.Complete);
+
             return false;
         }
 
-        var position = currentTime - startTime;
-        var duration = endTime - startTime;
-        var progress = Math.Min(1, position / duration);
-        if (cancellationToken.IsCancellationRequested)
+        public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, Ease ease,
+            TAdapter adapter,
+            Action<object?, T> action, object? state,
+            CancellationToken cancellationToken, out short token)
         {
+            if (!pool.TryPop(out var promise)) promise = new();
+
+            promise.delay = delay;
+            promise.duration = duration;
+            promise.PlaybackSpeed = playBackSpeed;
+            promise.ease = ease;
+            promise.action = action;
+            promise.state = state;
+            promise.adapter = adapter;
+            promise.cancellationToken = cancellationToken;
+            promise.core.Activate();
+            promise.time = 0;
+            token = promise.core.Version;
+            return promise;
+        }
+
+        private void ReturnWithContinuation(TweenResultType result)
+        {
+            if (core.TryGetContinuation(out var continuation, out var continuationState))
+            {
+                TryReturn();
+                continuation(continuationState, result);
+            }
+        }
+
+        public override bool TryCancel(short token)
+        {
+            if (core.Version != token) return false;
+            adapter.Dispose();
             if (core.IsSetContinuationWithAwait)
             {
-                core.TrySetCanceled(cancellationToken);
+                core.Deactivate();
+                core.TrySetCanceled(cancellationToken.IsCancellationRequested
+                    ? cancellationToken
+                    : CancellationToken.None);
             }
             else
             {
                 ReturnWithContinuation(TweenResultType.Cancel);
             }
 
-            return false;
-        }
 
-        if (startTime > currentTime) return true;
-
-        action(state, progress);
-        if (currentTime < endTime)
-        {
             return true;
         }
 
-        if (core.IsSetContinuationWithAwait)
+
+        public override bool TryComplete(short token)
         {
-            core.TrySetResult();
-            return false;
-        }
+            if (core.Version != token) return false;
+            action(state, adapter.Evaluate(EaseUtility.Evaluate(1, ease)));
 
-        ReturnWithContinuation(TweenResultType.Complete);
+            adapter.Dispose();
 
-        return false;
-    }
+            if (core.IsSetContinuationWithAwait)
+                core.TrySetResult();
+            else
+                ReturnWithContinuation(TweenResultType.Complete);
 
-    void ReturnWithContinuation(TweenResultType result)
-    {
-        if (core.TryGetContinuation(out var continuation, out var continuationState))
-        {
-            TryReturn();
-            continuation(continuationState, result);
-        }
-    }
-
-    public bool TryCancel(short token)
-    {
-        if (core.Version != token) return false;
-
-        if (core.IsSetContinuationWithAwait)
-        {
-            core.Deactivate();
-            core.TrySetCanceled(cancellationToken.IsCancellationRequested ? cancellationToken : CancellationToken.None);
-        }
-        else
-        {
-            ReturnWithContinuation(TweenResultType.Cancel);
+            return true;
         }
 
 
-        return true;
-    }
-
-
-    public bool TryComplete(short token)
-    {
-        if (core.Version != token) return false;
-        action(state, 1);
-        if (core.IsSetContinuationWithAwait)
+        public override bool TryReturn()
         {
-            core.TrySetResult();
+            core.Reset();
+            cancellationToken = CancellationToken.None;
+            action = null!;
+            return pool.TryPush(this);
         }
-        else
-        {
-            ReturnWithContinuation(TweenResultType.Complete);
-        }
-
-        return true;
-    }
-
-    public void GetResult(short token)
-    {
-        try
-        {
-            core.GetResult(token);
-        }
-        finally
-        {
-            TryReturn();
-        }
-    }
-
-    public ValueTaskSourceStatus GetStatus(short token)
-    {
-        return core.GetStatus(token);
-    }
-
-    public void OnCompleted(Action<object> continuation, object state, short token,
-        ValueTaskSourceOnCompletedFlags flags)
-    {
-        core.OnCompleted(continuation, state, token);
-    }
-
-    public void OnCompletedManual(Action<object?, TweenResultType> continuation, object? state, short token)
-    {
-        core.OnCompletedManual(continuation, state, token);
-    }
-
-    bool TryReturn()
-    {
-        core.Reset();
-        cancellationToken = CancellationToken.None;
-        action = null!;
-        return pool.TryPush(this);
     }
 }

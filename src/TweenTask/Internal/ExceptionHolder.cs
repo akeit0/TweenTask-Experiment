@@ -20,6 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -32,8 +33,8 @@ namespace TweenTasks.Internal
 {
     internal class ExceptionHolder
     {
-        ExceptionDispatchInfo exception;
-        bool calledGet = false;
+        private bool calledGet;
+        private readonly ExceptionDispatchInfo exception;
 
         public ExceptionHolder(ExceptionDispatchInfo exception)
         {
@@ -60,29 +61,31 @@ namespace TweenTasks.Internal
         }
     }
 }
+
 internal static class ThrowHelper
 {
-    internal static void ThrowArgumentNullIfNull([NotNull] object? argument, [CallerArgumentExpression(nameof(argument))] string? paramName = null)
+    internal static void ThrowArgumentNullIfNull([NotNull] object? argument,
+        [CallerArgumentExpression(nameof(argument))] string? paramName = null)
     {
-        if (argument is null)
-        {
-            ThrowArgumentNullException(paramName);
-        }
+        if (argument is null) ThrowArgumentNullException(paramName);
     }
 
     internal static void ThrowObjectDisposedIf([DoesNotReturnIf(true)] bool condition, Type type)
     {
-        if (condition)
-        {
-            ThrowObjectDisposedException(type);
-        }
+        if (condition) ThrowObjectDisposedException(type);
     }
 
     [DoesNotReturn]
-    internal static void ThrowArgumentNullException(string? paramName) => throw new ArgumentNullException(paramName);
+    internal static void ThrowArgumentNullException(string? paramName)
+    {
+        throw new ArgumentNullException(paramName);
+    }
 
     [DoesNotReturn]
-    internal static void ThrowObjectDisposedException(Type? type) => throw new ObjectDisposedException(type?.FullName);
+    internal static void ThrowObjectDisposedException(Type? type)
+    {
+        throw new ObjectDisposedException(type?.FullName);
+    }
 }
 
 
@@ -90,15 +93,15 @@ internal static class ThrowHelper
 internal struct FreeListCore<T>
     where T : class
 {
-    readonly object gate;
-    T?[]? values = null;
-    int lastIndex;
+    private readonly object gate;
+    private T?[]? values = null;
+    private int lastIndex;
 
     public FreeListCore(object gate)
     {
         // don't create values at initialize
         this.gate = gate;
-        this.lastIndex = -1;
+        lastIndex = -1;
     }
 
     public bool IsDisposed => lastIndex == -2;
@@ -117,10 +120,7 @@ internal struct FreeListCore<T>
         {
             ThrowHelper.ThrowObjectDisposedIf(IsDisposed, typeof(FreeListCore<T>));
 
-            if (values == null)
-            {
-                values = new T[1]; // initial size is 1.
-            }
+            if (values == null) values = new T[1]; // initial size is 1.
 
             // try find blank
             var index = FindNullIndex(values);
@@ -135,10 +135,7 @@ internal struct FreeListCore<T>
             }
 
             values[index] = item;
-            if (lastIndex < index)
-            {
-                Volatile.Write(ref lastIndex, index);
-            }
+            if (lastIndex < index) Volatile.Write(ref lastIndex, index);
 
             removeKey = index; // index is remove key.
         }
@@ -156,10 +153,7 @@ internal struct FreeListCore<T>
                 if (v == null) throw new KeyNotFoundException($"key index {index} is not found.");
 
                 v = null;
-                if (index == lastIndex)
-                {
-                    Volatile.Write(ref lastIndex, FindLastNonNullIndex(values, index));
-                }
+                if (index == lastIndex) Volatile.Write(ref lastIndex, FindLastNonNullIndex(values, index));
             }
         }
     }
@@ -173,14 +167,12 @@ internal struct FreeListCore<T>
 
             var index = -1;
             var span = values.AsSpan(0, lastIndex + 1);
-            for (int i = 0; i < span.Length; i++)
-            {
+            for (var i = 0; i < span.Length; i++)
                 if (span[i] == value)
                 {
                     index = i;
                     break;
                 }
-            }
 
             if (index != -1)
             {
@@ -188,6 +180,7 @@ internal struct FreeListCore<T>
                 return true;
             }
         }
+
         return false;
     }
 
@@ -195,18 +188,9 @@ internal struct FreeListCore<T>
     {
         lock (gate)
         {
-            if (lastIndex >= 0)
-            {
-                values.AsSpan(0, lastIndex + 1).Clear();
-            }
-            if (removeArray)
-            {
-                values = null;
-            }
-            if (lastIndex != -2)
-            {
-                lastIndex = -1;
-            }
+            if (lastIndex >= 0) values.AsSpan(0, lastIndex + 1).Clear();
+            if (removeArray) values = null;
+            if (lastIndex != -2) lastIndex = -1;
         }
     }
 
@@ -220,7 +204,6 @@ internal struct FreeListCore<T>
     }
 
 #if NET6_0_OR_GREATER
-
     static int FindNullIndex(T?[] target)
     {
         var span = MemoryMarshal.CreateReadOnlySpan(
@@ -230,7 +213,7 @@ internal struct FreeListCore<T>
 
 #else
 
-    static unsafe int FindNullIndex(T?[] target)
+    private static unsafe int FindNullIndex(T?[] target)
     {
         ref var head = ref Unsafe.As<T?, IntPtr>(ref MemoryMarshal.GetReference(target.AsSpan()));
         fixed (void* p = &head)
@@ -252,7 +235,6 @@ internal struct FreeListCore<T>
 #endif
 
 #if NET8_0_OR_GREATER
-
     static int FindLastNonNullIndex(T?[] target, int lastIndex)
     {
         var span = MemoryMarshal.CreateReadOnlySpan(
@@ -263,7 +245,7 @@ internal struct FreeListCore<T>
 
 #else
 
-    static unsafe int FindLastNonNullIndex(T?[] target, int lastIndex)
+    private static unsafe int FindLastNonNullIndex(T?[] target, int lastIndex)
     {
         ref var head = ref Unsafe.As<T?, IntPtr>(ref MemoryMarshal.GetReference(target.AsSpan()));
         fixed (void* p = &head)
@@ -271,9 +253,8 @@ internal struct FreeListCore<T>
             var span = new ReadOnlySpan<IntPtr>(p, lastIndex); // without lastIndexed value.
 
             for (var i = span.Length - 1; i >= 0; i--)
-            {
-                if (span[i] != IntPtr.Zero) return i;
-            }
+                if (span[i] != IntPtr.Zero)
+                    return i;
 
             return -1;
         }

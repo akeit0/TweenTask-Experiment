@@ -1,8 +1,9 @@
 namespace TweenTasks
 {
-    public abstract class TweenRunner
+    public interface ITweenRunner
     {
-        public abstract double GetCurrentTime();
-        public abstract void Register(ITweenRunnerWorkItem callback);
+        public static ITweenRunner Default { get; set; }
+        public double GetCurrentTime();
+        public void Register(ITweenRunnerWorkItem callback);
     }
 }
