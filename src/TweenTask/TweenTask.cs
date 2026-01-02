@@ -1,10 +1,11 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using TweenTasks.Internal;
 
 namespace TweenTasks
 {
-    public readonly struct TweenTask
+    public readonly struct TweenTask : IEquatable<TweenTask>
     {
         public static TweenBuilder<T, TAdapter> CreateFromAdapter<T, TAdapter>(TAdapter adapter, double duration)
             where TAdapter : ITweenAdapter<T>
@@ -53,6 +54,21 @@ namespace TweenTasks
         public ValueTaskAwaiter GetAwaiter()
         {
             return new ValueTask(promise, token).GetAwaiter();
+        }
+
+        public bool Equals(TweenTask other)
+        {
+            return promise == other.promise && token == other.token;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is TweenTask other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(promise, token);
         }
     }
 }

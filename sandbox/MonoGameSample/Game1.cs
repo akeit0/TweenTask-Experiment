@@ -47,6 +47,54 @@ namespace MonoGameSample
             Texture.SetData(new[] { Color.White });
         }
 
+        public static Color HsvToRgb(double h, double s, double v)
+        {
+            h = h % 360; // Ensure hue is within 0-360
+            if (h < 0) h += 360;
+
+            double c = v * s; // Chroma
+            double x = c * (1 - Math.Abs((h / 60) % 2 - 1));
+            double m = v - c;
+
+            double rPrime = 0, gPrime = 0, bPrime = 0;
+
+            if (h < 60)
+            {
+                rPrime = c;
+                gPrime = x;
+            }
+            else if (h < 120)
+            {
+                rPrime = x;
+                gPrime = c;
+            }
+            else if (h < 180)
+            {
+                gPrime = c;
+                bPrime = x;
+            }
+            else if (h < 240)
+            {
+                gPrime = x;
+                bPrime = c;
+            }
+            else if (h < 300)
+            {
+                rPrime = x;
+                bPrime = c;
+            }
+            else
+            {
+                rPrime = c;
+                bPrime = x;
+            }
+
+            var r = (int)((rPrime + m) * 255);
+            var g = (int)((gPrime + m) * 255);
+            var b = (int)((bPrime + m) * 255);
+            return new Color(r, g, b);
+        }
+
         protected override void Update(GameTime gameTime)
         {
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
@@ -72,7 +120,8 @@ namespace MonoGameSample
                     var newObj = new SimpleSpriteObject(Texture)
                     {
                         Position = center + 200f * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
-                        Size = 10 + 20 * Rand.NextSingle()
+                        Size = 10 + 20 * Rand.NextSingle(),
+                        Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
                     };
 
                     spriteObjects.Add(newObj);
@@ -93,7 +142,7 @@ namespace MonoGameSample
                                     break;
                                 case TweenResultType.Cancel:
                                 {
-                                    Console.WriteLine("Cancelled");
+                                    //Console.WriteLine("Cancelled");
                                 }
                                     break;
                             }
@@ -121,7 +170,12 @@ namespace MonoGameSample
         {
             spriteObjectsToDelete.Add(obj);
             await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
-                .WithOnEnd(result => Console.WriteLine(result.ResultType)).Bind(obj, (o, size) => o.Size = size);
+                .WithOnEnd(result =>
+                {
+                    Console.WriteLine(result.ResultType == TweenResultType.Complete
+                        ? "Delete Completed"
+                        : "Delete Canceled");
+                }).Bind(obj, (o, size) => o.Size = size);
             obj.Dispose();
             spriteObjects.Remove(obj);
         }
@@ -134,23 +188,6 @@ namespace MonoGameSample
 
             _spriteBatch.End();
             base.Draw(gameTime);
-        }
-
-        private void DrawRectangle(SpriteBatch sb, Rectangle rec, Color color)
-        {
-            var pos = new Vector2(rec.X, rec.Y);
-            sb.Draw(Texture, pos, rec,
-                color * 1.0f,
-                0, Vector2.Zero, 1.0f,
-                SpriteEffects.None, 0.00001f);
-        }
-
-        private void DrawRectangle(SpriteBatch sb, Vector2 position, float scale, Color color)
-        {
-            sb.Draw(Texture, position, null,
-                color * 1.0f,
-                0, Vector2.Zero, scale,
-                SpriteEffects.None, 0.00001f);
         }
     }
 
@@ -182,7 +219,6 @@ namespace MonoGameSample
 
         public void Dispose()
         {
-            Console.WriteLine($"{GetHashCode():x8} : Disposed");
             try
             {
                 cts.Cancel();
@@ -199,7 +235,7 @@ namespace MonoGameSample
         {
             if (cts.IsCancellationRequested) return;
 
-            sb.Draw(Texture, Position, null,
+            sb.Draw(Texture, Position - new Vector2(Size / 2), null,
                 Color,
                 0, Vector2.Zero, Size,
                 SpriteEffects.None, 0.00001f);
