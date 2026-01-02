@@ -6,20 +6,20 @@ namespace TweenTasks.Internal
 {
     internal abstract class TweenPromise : IValueTaskSource
     {
-        protected CancellationToken cancellationToken;
-        protected TweenTaskCompletionSourceCore core;
-        protected double delay;
-        protected double duration;
-        protected Ease ease;
+        protected CancellationToken CancellationToken;
+        protected TweenTaskCompletionSourceCore Core;
+        protected double Delay;
+        protected double Duration;
+        protected Ease Ease;
         public double PlaybackSpeed;
-        protected object? state;
-        protected double time;
+        protected object? State;
+        protected double Time;
 
         public void GetResult(short token)
         {
             try
             {
-                core.GetResult(token);
+                Core.GetResult(token);
             }
             finally
             {
@@ -29,13 +29,13 @@ namespace TweenTasks.Internal
 
         public ValueTaskSourceStatus GetStatus(short token)
         {
-            return core.GetStatus(token);
+            return Core.GetStatus(token);
         }
 
         public void OnCompleted(Action<object> continuation, object state, short token,
             ValueTaskSourceOnCompletedFlags flags)
         {
-            core.OnCompleted(continuation, state, token);
+            Core.OnCompleted(continuation, state, token);
         }
 
         public abstract bool TryCancel(short token);
@@ -56,31 +56,31 @@ namespace TweenTasks.Internal
 
         public bool MoveNext(double deltaTime)
         {
-            if (!core.IsActive) return false;
+            if (!Core.IsActive) return false;
 
-            time += PlaybackSpeed * deltaTime;
-            var position = time - delay;
-            var progress = Math.Min(1, position / duration);
-            if (cancellationToken.IsCancellationRequested)
+            Time += PlaybackSpeed * deltaTime;
+            var position = Time - Delay;
+            var progress = Math.Min(1, position / Duration);
+            if (CancellationToken.IsCancellationRequested)
             {
-                if (core.IsSetContinuationWithAwait)
-                    core.TrySetCanceled(cancellationToken);
+                if (Core.IsSetContinuationWithAwait)
+                    Core.TrySetCanceled(CancellationToken);
                 else
                     ReturnWithContinuation(TweenResultType.Cancel);
 
                 return false;
             }
 
-            if (delay > time) return true;
+            if (Delay > Time) return true;
 
-            action(state, adapter.Evaluate(EaseUtility.Evaluate(progress, ease)));
+            action(State, adapter.Evaluate(EaseUtility.Evaluate(progress, Ease)));
             if (progress < 1) return true;
 
             adapter.Dispose();
 
-            if (core.IsSetContinuationWithAwait)
+            if (Core.IsSetContinuationWithAwait)
             {
-                core.TrySetResult();
+                Core.TrySetResult();
                 return false;
             }
 
@@ -97,24 +97,24 @@ namespace TweenTasks.Internal
         {
             if (!pool.TryPop(out var promise)) promise = new();
 
-            promise.delay = delay;
-            promise.duration = duration;
+            promise.Delay = delay;
+            promise.Duration = duration;
             promise.PlaybackSpeed = playBackSpeed;
-            promise.ease = ease;
+            promise.Ease = ease;
             promise.action = action;
-            promise.state = state;
+            promise.State = state;
             promise.adapter = adapter;
-            promise.cancellationToken = cancellationToken;
-            promise.core.Activate();
-            if (endCallback != null) promise.core.OnCompletedManual(endCallback, endState);
-            promise.time = 0;
-            token = promise.core.Version;
+            promise.CancellationToken = cancellationToken;
+            promise.Core.Activate();
+            if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
+            promise.Time = 0;
+            token = promise.Core.Version;
             return promise;
         }
 
         private void ReturnWithContinuation(TweenResultType result)
         {
-            if (core.TryGetContinuation(out var continuation, out var continuationState))
+            if (Core.TryGetContinuation(out var continuation, out var continuationState))
             {
                 TryReturn();
                 continuation(continuationState, new(result));
@@ -127,13 +127,13 @@ namespace TweenTasks.Internal
 
         public override bool TryCancel(short token)
         {
-            if (core.Version != token) return false;
+            if (Core.Version != token) return false;
             adapter.Dispose();
-            if (core.IsSetContinuationWithAwait)
+            if (Core.IsSetContinuationWithAwait)
             {
-                core.Deactivate();
-                core.TrySetCanceled(cancellationToken.IsCancellationRequested
-                    ? cancellationToken
+                Core.Deactivate();
+                Core.TrySetCanceled(CancellationToken.IsCancellationRequested
+                    ? CancellationToken
                     : CancellationToken.None);
             }
             else
@@ -148,13 +148,13 @@ namespace TweenTasks.Internal
 
         public override bool TryComplete(short token)
         {
-            if (core.Version != token) return false;
-            action(state, adapter.Evaluate(EaseUtility.Evaluate(1, ease)));
+            if (Core.Version != token) return false;
+            action(State, adapter.Evaluate(EaseUtility.Evaluate(1, Ease)));
 
             adapter.Dispose();
 
-            if (core.IsSetContinuationWithAwait)
-                core.TrySetResult();
+            if (Core.IsSetContinuationWithAwait)
+                Core.TrySetResult();
             else
                 ReturnWithContinuation(TweenResultType.Complete);
 
@@ -164,8 +164,8 @@ namespace TweenTasks.Internal
 
         public override bool TryReturn()
         {
-            core.Reset();
-            cancellationToken = CancellationToken.None;
+            Core.Reset();
+            CancellationToken = CancellationToken.None;
             action = null!;
             //Console.WriteLine(GetType().Name+" is Returned");
             return pool.TryPush(this);

@@ -85,11 +85,11 @@ namespace TweenTasks.Internal
                 {
                     if (error is OperationCanceledException oc)
                     {
-                        //TweenTaskScheduler.PublishUnobservedTaskException(oc);
+                        TweenSystem.GetUnhandledExceptionHandler().Invoke(oc);
                     }
                     else if (error is ExceptionHolder e)
                     {
-                        // TweenTaskScheduler.PublishUnobservedTaskException(e.GetException().SourceException);
+                        TweenSystem.GetUnhandledExceptionHandler().Invoke(e.GetException().SourceException);
                     }
                 }
                 catch
@@ -269,7 +269,7 @@ namespace TweenTasks.Internal
                     "Already continuation registered, can not await twice or get Status after await.");
 
             // not set continuation yet.
-            object oldContinuation = this.continuation;
+            object? oldContinuation = this.continuation;
             if (oldContinuation == null)
             {
                 continuationState = state;
@@ -314,12 +314,12 @@ namespace TweenTasks.Internal
     internal class CallBackWrapper : ITaskPoolNode<CallBackWrapper>
     {
         private static TaskPool<CallBackWrapper> pool;
-        public Action<object?, TweenResult> Callback;
-        public Action<object> Continuation;
-        public object ContinuationState;
-        private CallBackWrapper next;
-        public object State;
-        public ref CallBackWrapper NextNode => ref next;
+        public Action<object?, TweenResult> Callback = null!;
+        public Action<object> Continuation = null!;
+        public object ContinuationState = null!;
+        private CallBackWrapper? next = null;
+        public object State = null!;
+        public ref CallBackWrapper? NextNode => ref next;
 
         public static CallBackWrapper Create(Action<object?, TweenResult> callback, object state,
             Action<object> continuation, object continuationState)

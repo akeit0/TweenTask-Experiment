@@ -64,7 +64,7 @@ namespace TweenTasks
                             try
                             {
                                 Console.WriteLine(ex);
-                                //ObservableSystem.GetUnhandledExceptionHandler().Invoke(ex);
+                                TweenSystem.GetUnhandledExceptionHandler().Invoke(ex);
                             }
                             catch
                             {

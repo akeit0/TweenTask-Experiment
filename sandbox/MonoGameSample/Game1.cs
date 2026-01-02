@@ -26,6 +26,10 @@ namespace MonoGameSample
 
         private bool spacePressed;
         public Texture2D Texture;
+        private SpriteFont hudFont;
+        private int AliveCount => spriteObjects.Count;
+        private int DeadCount { get; set; }
+        private int TotalCount { get; set; }
 
         public Game1()
         {
@@ -34,16 +38,13 @@ namespace MonoGameSample
             IsMouseVisible = true;
         }
 
-        protected override void Initialize()
-        {
-            base.Initialize();
-        }
 
         protected override void LoadContent()
         {
             _spriteBatch = new(GraphicsDevice);
             soundFX = new();
             Texture = new(_graphics.GraphicsDevice, 1, 1);
+            hudFont = Content.Load<SpriteFont>("Fonts/Hud");
             Texture.SetData(new[] { Color.White });
         }
 
@@ -119,11 +120,11 @@ namespace MonoGameSample
                 {
                     var newObj = new SimpleSpriteObject(Texture)
                     {
-                        Position = center + 200f * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
+                        Position = center + new Vector2(bounds.Width/2f,bounds.Height/2f) * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
                         Size = 10 + 20 * Rand.NextSingle(),
                         Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
                     };
-
+                    TotalCount++;
                     spriteObjects.Add(newObj);
 
                     TweenTask.Create(newObj.Position,
@@ -142,7 +143,8 @@ namespace MonoGameSample
                                     break;
                                 case TweenResultType.Cancel:
                                 {
-                                    //Console.WriteLine("Cancelled");
+                                    soundFX.PlayWave(220 * MathF.Pow(2, Rand.NextSingle() - 0.5f), 200, WaveType.Sin,
+                                        0.2f);
                                 }
                                     break;
                             }
@@ -170,11 +172,17 @@ namespace MonoGameSample
         {
             spriteObjectsToDelete.Add(obj);
             await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
-                .WithOnEnd(result =>
+                .WithOnEnd(this, (game, result) =>
                 {
-                    Console.WriteLine(result.ResultType == TweenResultType.Complete
-                        ? "Delete Completed"
-                        : "Delete Canceled");
+                    if (result.ResultType == TweenResultType.Complete)
+                    {
+                        game.DeadCount++;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to delete");
+                    }
+                  
                 }).Bind(obj, (o, size) => o.Size = size);
             obj.Dispose();
             spriteObjects.Remove(obj);
@@ -185,6 +193,7 @@ namespace MonoGameSample
             GraphicsDevice.Clear(Color.CornflowerBlue);
             _spriteBatch.Begin();
             foreach (var spriteObject in spriteObjects) spriteObject.Draw(_spriteBatch);
+            _spriteBatch.DrawString(hudFont, $"Alive: {AliveCount}, Deleted: {DeadCount}, Total: {TotalCount}", default, Color.White);
 
             _spriteBatch.End();
             base.Draw(gameTime);
