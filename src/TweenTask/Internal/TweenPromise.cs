@@ -41,11 +41,6 @@ namespace TweenTasks.Internal
         public abstract bool TryCancel(short token);
         public abstract bool TryComplete(short token);
         public abstract bool TryReturn();
-
-        public void OnCompletedManual(Action<object?, TweenResultType> continuation, object? state, short token)
-        {
-            core.OnCompletedManual(continuation, state, token);
-        }
     }
 
     internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
@@ -97,7 +92,7 @@ namespace TweenTasks.Internal
 
         public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, Ease ease,
             TAdapter adapter,
-            Action<object?, T> action, object? state,
+            Action<object?, T> action, object? state, Action<object?, TweenResult>? endCallback, object? endState,
             CancellationToken cancellationToken, out short token)
         {
             if (!pool.TryPop(out var promise)) promise = new();
@@ -111,6 +106,7 @@ namespace TweenTasks.Internal
             promise.adapter = adapter;
             promise.cancellationToken = cancellationToken;
             promise.core.Activate();
+            if (endCallback != null) promise.core.OnCompletedManual(endCallback, endState);
             promise.time = 0;
             token = promise.core.Version;
             return promise;
@@ -121,7 +117,11 @@ namespace TweenTasks.Internal
             if (core.TryGetContinuation(out var continuation, out var continuationState))
             {
                 TryReturn();
-                continuation(continuationState, result);
+                continuation(continuationState, new(result));
+            }
+            else
+            {
+                TryReturn();
             }
         }
 
@@ -167,6 +167,7 @@ namespace TweenTasks.Internal
             core.Reset();
             cancellationToken = CancellationToken.None;
             action = null!;
+            //Console.WriteLine(GetType().Name+" is Returned");
             return pool.TryPush(this);
         }
     }

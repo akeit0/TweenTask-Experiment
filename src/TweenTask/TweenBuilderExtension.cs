@@ -6,6 +6,9 @@ namespace TweenTasks
 {
     public static class TweenBuilderExtension
     {
+        private static readonly Action<object?, TweenResult> OnEndWrapAction =
+            (state, result) => Unsafe.As<Action<TweenResult>>(state)(result);
+
         extension<TValue, TAdapter>(TweenBuilder<TValue, TAdapter> builder) where TAdapter : ITweenAdapter<TValue>
         {
             public TweenBuilder<TValue, TAdapter> WithCancellationToken(CancellationToken ct)
@@ -19,6 +22,23 @@ namespace TweenTasks
             {
                 builder.Validate();
                 builder.Buffer.Runner = runner;
+                return builder;
+            }
+
+            public TweenBuilder<TValue, TAdapter> WithOnEnd<TState>(TState state,
+                Action<TState, TweenResult> callback) where TState : class
+            {
+                builder.Validate();
+                builder.Buffer.State = state;
+                builder.Buffer.OnCompleteAction = Unsafe.As<Action<object?, TweenResult>>(callback);
+                return builder;
+            }
+
+            public TweenBuilder<TValue, TAdapter> WithOnEnd(Action<TweenResult> callback)
+            {
+                builder.Validate();
+                builder.Buffer.State = callback;
+                builder.Buffer.OnCompleteAction = OnEndWrapAction;
                 return builder;
             }
 

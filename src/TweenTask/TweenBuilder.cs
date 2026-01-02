@@ -35,6 +35,7 @@ namespace TweenTasks
 
             var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
                 Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, callback, state,
+                Buffer.OnCompleteAction, Buffer.State,
                 Buffer.CancellationToken,
                 out var token);
             (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
@@ -47,9 +48,10 @@ namespace TweenTasks
         {
             Validate();
             var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
-                Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, callback, state, cancellationToken,
+                Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, callback, state,
+                Buffer.OnCompleteAction, Buffer.State, cancellationToken,
                 out var token);
-            (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
+            Buffer.Runner.Register(promise);
             return new(
                 promise,
                 token);
@@ -60,9 +62,10 @@ namespace TweenTasks
             Validate();
             var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
                 Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter,
-                (state, value) => Unsafe.As<Action<TValue>>(state)(value), callback, cancellationToken,
+                (state, value) => Unsafe.As<Action<TValue>>(state)(value), callback, Buffer.OnCompleteAction,
+                Buffer.State, cancellationToken,
                 out var token);
-            (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
+            Buffer.Runner.Register(promise);
             return new(
                 promise,
                 token);

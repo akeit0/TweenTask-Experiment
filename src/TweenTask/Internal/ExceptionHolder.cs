@@ -33,8 +33,8 @@ namespace TweenTasks.Internal
 {
     internal class ExceptionHolder
     {
-        private bool calledGet;
         private readonly ExceptionDispatchInfo exception;
+        private bool calledGet;
 
         public ExceptionHolder(ExceptionDispatchInfo exception)
         {
@@ -65,7 +65,8 @@ namespace TweenTasks.Internal
 internal static class ThrowHelper
 {
     internal static void ThrowArgumentNullIfNull([NotNull] object? argument,
-        [CallerArgumentExpression(nameof(argument))] string? paramName = null)
+        [CallerArgumentExpression(nameof(argument))]
+        string? paramName = null)
     {
         if (argument is null) ThrowArgumentNullException(paramName);
     }

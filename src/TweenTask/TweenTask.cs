@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using TweenTasks.Internal;
 
@@ -25,21 +24,6 @@ namespace TweenTasks
         {
             this.promise = promise;
             this.token = token;
-        }
-
-        public TweenTask WithOnComplete<TState>(TState state, Action<TState, TweenResultType> continuation)
-            where TState : class
-        {
-            promise.OnCompletedManual(Unsafe.As<Action<object?, TweenResultType>>(continuation), state, token);
-            return this;
-        }
-
-        public TweenTask WithOnComplete(Action<TweenResultType> continuation)
-        {
-            promise.OnCompletedManual((state, result) => Unsafe.As<Action<TweenResultType>>(state)(result),
-                continuation,
-                token);
-            return this;
         }
 
         public void SetPlaybackSpeed(double speed)

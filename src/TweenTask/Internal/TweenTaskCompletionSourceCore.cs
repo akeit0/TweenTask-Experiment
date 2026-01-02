@@ -32,17 +32,18 @@ using System.Threading.Tasks.Sources;
 namespace TweenTasks.Internal
 {
     [Flags]
-    public enum TweenTaskCompletionSourceFlags : byte
+    public enum TweenTaskCompletionSourceFlags
     {
         SetContinuationWithAwait = 1,
-        Pooled = 2
+        Pooled = 2,
+        Wrapped = 4,
+        HasHandledError = 8
     }
 
     [StructLayout(LayoutKind.Auto)]
     public struct TweenTaskCompletionSourceCore
     {
         private object? error; // ExceptionHolder or OperationCanceledException
-        private bool hasUnhandledError;
         private TweenTaskCompletionSourceFlags flags;
         private int completedCount; // 0: completed == false
         private Action<object?>? continuation;
@@ -72,7 +73,6 @@ namespace TweenTasks.Internal
 
             completedCount = 0;
             error = null;
-            hasUnhandledError = false;
             continuation = null;
             continuationState = null;
             flags = TweenTaskCompletionSourceFlags.Pooled;
@@ -80,7 +80,7 @@ namespace TweenTasks.Internal
 
         private void ReportUnhandledError()
         {
-            if (hasUnhandledError)
+            if ((flags & TweenTaskCompletionSourceFlags.HasHandledError) != 0)
                 try
                 {
                     if (error is OperationCanceledException oc)
@@ -102,7 +102,7 @@ namespace TweenTasks.Internal
 
         internal void MarkHandled()
         {
-            hasUnhandledError = false;
+            flags &= ~TweenTaskCompletionSourceFlags.HasHandledError;
         }
 
         /// <summary>Completes with a successful result.</summary>
@@ -112,11 +112,13 @@ namespace TweenTasks.Internal
             if (Interlocked.Increment(ref completedCount) == 1)
             {
                 // setup result
-
                 if (continuation != null ||
                     Interlocked.CompareExchange(ref continuation, TweenTaskCompletionSourceCoreShared.s_sentinel,
                         null) != null)
-                    continuation(continuationState);
+                    if ((flags & TweenTaskCompletionSourceFlags.Wrapped) != 0)
+                        Unsafe.As<CallBackWrapper>(continuationState)
+                            .Run(TweenResultType.Complete);
+                    else continuation(continuationState);
 
                 return true;
             }
@@ -126,25 +128,21 @@ namespace TweenTasks.Internal
 
         /// <summary>Completes with a successful result.</summary>
         [DebuggerHidden]
-        public bool TryGetContinuation(out Action<object?, TweenResultType> continuationAction,
+        public bool TryGetContinuation(out Action<object?, TweenResult> continuationAction,
             out object? continuationActionState)
         {
             Unsafe.SkipInit(out continuationAction);
             Unsafe.SkipInit(out continuationActionState);
             if (Interlocked.Increment(ref completedCount) == 1)
-            {
                 // setup result
-
                 if (continuation != null ||
                     Interlocked.CompareExchange(ref continuation, TweenTaskCompletionSourceCoreShared.s_sentinel,
                         null) != null)
                 {
-                    continuationAction = Unsafe.As<Action<object?, TweenResultType>>(continuation);
+                    continuationAction = Unsafe.As<Action<object?, TweenResult>>(continuation);
                     continuationActionState = continuationState;
+                    return true;
                 }
-
-                return true;
-            }
 
             return false;
         }
@@ -157,7 +155,7 @@ namespace TweenTasks.Internal
             if (Interlocked.Increment(ref completedCount) == 1)
             {
                 // setup result
-                hasUnhandledError = true;
+                flags |= TweenTaskCompletionSourceFlags.HasHandledError;
                 if (error is OperationCanceledException)
                     this.error = error;
                 else
@@ -182,15 +180,17 @@ namespace TweenTasks.Internal
             if (Interlocked.Increment(ref completedCount) == 1)
             {
                 // setup result
-                hasUnhandledError = true;
-                error = cancellationToken == CancellationToken.None
-                    ? defaultCancelledException
-                    : new(cancellationToken);
+                flags |= TweenTaskCompletionSourceFlags.HasHandledError;
+                error = new OperationCanceledException(cancellationToken);
 
                 if (continuation != null ||
                     Interlocked.CompareExchange(ref continuation, TweenTaskCompletionSourceCoreShared.s_sentinel,
                         null) != null)
-                    continuation(continuationState);
+
+                    if ((flags & TweenTaskCompletionSourceFlags.Wrapped) != 0)
+                        Unsafe.As<CallBackWrapper>(continuationState)
+                            .Run(TweenResultType.Cancel);
+                    else continuation(continuationState);
 
                 return true;
             }
@@ -223,12 +223,13 @@ namespace TweenTasks.Internal
         public void GetResult(short token)
         {
             ValidateToken(token);
+
             if (completedCount == 0)
                 throw new InvalidOperationException("Not yet completed, TweenTask only allow to use await.");
 
             if (error != null)
             {
-                hasUnhandledError = false;
+                flags &= ~TweenTaskCompletionSourceFlags.HasHandledError;
                 if (error is OperationCanceledException oce) throw oce;
 
                 if (error is ExceptionHolder eh) eh.GetException().Throw();
@@ -250,7 +251,7 @@ namespace TweenTasks.Internal
 
             ValidateToken(token);
 
-            /* no use ValueTaskSourceOnCOmpletedFlags, always no capture ExecutionContext and SynchronizationContext. */
+            /* no use ValueTaskSourceOnCompletedFlags, always no capture ExecutionContext and SynchronizationContext. */
 
             /*
             PatternA: GetStatus=Pending => OnCompleted => TrySet*** => GetResult
@@ -259,7 +260,14 @@ namespace TweenTasks.Internal
             C.1: win OnCompleted -> TrySet invoke saved continuation
             C.2: win TrySet -> should invoke continuation here.
         */
-            flags |= TweenTaskCompletionSourceFlags.SetContinuationWithAwait;
+            var oldFlags = (int)flags;
+            if ((oldFlags & (int)TweenTaskCompletionSourceFlags.SetContinuationWithAwait) != 0 ||
+                Interlocked.CompareExchange(ref Unsafe.As<TweenTaskCompletionSourceFlags, int>(ref flags), oldFlags |
+                    (int)TweenTaskCompletionSourceFlags.SetContinuationWithAwait,
+                    oldFlags) != oldFlags)
+                throw new InvalidOperationException(
+                    "Already continuation registered, can not await twice or get Status after await.");
+
             // not set continuation yet.
             object oldContinuation = this.continuation;
             if (oldContinuation == null)
@@ -273,48 +281,24 @@ namespace TweenTasks.Internal
                 // already running continuation in TrySet.
                 // It will cause call OnCompleted multiple time, invalid.
                 if (!ReferenceEquals(oldContinuation, TweenTaskCompletionSourceCoreShared.s_sentinel))
-                    throw new InvalidOperationException(
-                        "Already continuation registered, can not await twice or get Status after await.");
+                {
+                    var wrapper = CallBackWrapper.Create(Unsafe.As<Action<object?, TweenResult>>(oldContinuation),
+                        continuationState!, continuation, state);
+                    this.continuation = static _ => { };
+                    continuationState = wrapper;
+                    flags |= TweenTaskCompletionSourceFlags.Wrapped;
+                    return;
+                }
 
                 continuation(state);
             }
         }
 
-        public void OnCompletedManual(Action<object?, TweenResultType> continuation, object? state,
-            short token /*, ValueTaskSourceOnCompletedFlags flags */)
+        public void OnCompletedManual(Action<object?, TweenResult> continuation, object? state)
         {
             if (continuation == null) throw new ArgumentNullException(nameof(continuation));
-
-            ValidateToken(token);
-
-            /* no use ValueTaskSourceOnCOmpletedFlags, always no capture ExecutionContext and SynchronizationContext. */
-
-            /*
-            PatternA: GetStatus=Pending => OnCompleted => TrySet*** => GetResult
-            PatternB: TrySet*** => GetStatus=!Pending => GetResult
-            PatternC: GetStatus=Pending => TrySet/OnCompleted(race condition) => GetResult
-            C.1: win OnCompleted -> TrySet invoke saved continuation
-            C.2: win TrySet -> should invoke continuation here.
-        */
-            // not set continuation yet.
-            object oldContinuation = this.continuation;
-            if (oldContinuation == null)
-            {
-                continuationState = state;
-                oldContinuation = Interlocked.CompareExchange(ref this.continuation,
-                    Unsafe.As<Action<object>>(continuation), null);
-            }
-
-            if (oldContinuation != null)
-            {
-                // already running continuation in TrySet.
-                // It will cause call OnCompleted multiple time, invalid.
-                if (!ReferenceEquals(oldContinuation, TweenTaskCompletionSourceCoreShared.s_sentinel))
-                    throw new InvalidOperationException(
-                        "Already continuation registered, can not await twice or get Status after await.");
-
-                continuation(state, TweenResultType.Cancel);
-            }
+            this.continuation = Unsafe.As<Action<object?>>(continuation);
+            continuationState = state;
         }
 
         [DebuggerHidden]
@@ -324,6 +308,55 @@ namespace TweenTasks.Internal
             if (token != Version)
                 throw new InvalidOperationException(
                     "Token version is not matched, can not await twice or get Status after await.");
+        }
+    }
+
+    internal class CallBackWrapper : ITaskPoolNode<CallBackWrapper>
+    {
+        private static TaskPool<CallBackWrapper> pool;
+        public Action<object?, TweenResult> Callback;
+        public Action<object> Continuation;
+        public object ContinuationState;
+        private CallBackWrapper next;
+        public object State;
+        public ref CallBackWrapper NextNode => ref next;
+
+        public static CallBackWrapper Create(Action<object?, TweenResult> callback, object state,
+            Action<object> continuation, object continuationState)
+        {
+            if (!pool.TryPop(out var wrapper)) wrapper = new();
+
+            wrapper.Callback = callback;
+            wrapper.State = state;
+            wrapper.Continuation = continuation;
+            wrapper.ContinuationState = continuationState;
+            return wrapper;
+        }
+
+
+        public void Run(TweenResultType resultType)
+        {
+            var callback = Callback;
+            var callbackState = State;
+            var continuation = Continuation;
+            var continuationState = ContinuationState;
+            Callback = null!;
+            Continuation = null!;
+            State = null!;
+            ContinuationState = null!;
+            pool.TryPush(this);
+            try
+            {
+                callback(callbackState, new(resultType));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+            finally
+            {
+                continuation(continuationState);
+            }
         }
     }
 }

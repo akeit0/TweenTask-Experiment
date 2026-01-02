@@ -15,14 +15,16 @@ namespace MonoGameSample
     {
         private readonly GraphicsDeviceManager _graphics;
 
+        private readonly Random Rand = new();
+        private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
+        private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
+
         private ManualTweenRunner? _runner;
         private SpriteBatch _spriteBatch;
 
-        private readonly Random Rand = new();
+        private AudioSource soundFX;
 
         private bool spacePressed;
-
-        private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
         public Texture2D Texture;
 
         public Game1()
@@ -40,7 +42,7 @@ namespace MonoGameSample
         protected override void LoadContent()
         {
             _spriteBatch = new(GraphicsDevice);
-
+            soundFX = new();
             Texture = new(_graphics.GraphicsDevice, 1, 1);
             Texture.SetData(new[] { Color.White });
         }
@@ -61,31 +63,32 @@ namespace MonoGameSample
                 _runner.Run(gameTime.TotalGameTime.TotalSeconds);
             }
 
-
+            var bounds = Window.ClientBounds;
+            var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
             if (Keyboard.GetState().IsKeyDown(Keys.Space))
             {
                 if (!spacePressed)
                 {
                     var newObj = new SimpleSpriteObject(Texture)
                     {
-                        Position = new(500 * Rand.NextSingle(), 500 * Rand.NextSingle()),
+                        Position = center + 200f * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
                         Size = 10 + 20 * Rand.NextSingle()
                     };
 
                     spriteObjects.Add(newObj);
 
                     TweenTask.Create(newObj.Position,
-                            newObj.Position + new Vector2(300 * Rand.NextSingle() - 150, 300 * Rand.NextSingle() - 150),
+                            newObj.Position + 200 * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
                             1 + Rand.NextSingle()).WithCancellationToken(newObj.CancellationToken)
-                        .WithEase(Ease.InBounce).Bind(newObj, (o, position) => o.Position = position)
-                        .WithOnComplete(newObj, (o, result) =>
+                        .WithEase(Ease.InBounce)
+                        .WithOnEnd(newObj, (o, result) =>
                         {
-                            switch (result)
+                            switch (result.ResultType)
                             {
                                 case TweenResultType.Complete:
                                 {
-                                    o.Position -= new Vector2(o.Size, o.Size) / 2;
-                                    o.Size *= 2;
+                                    soundFX.PlayWave(440 * MathF.Pow(2, Rand.NextSingle() - 0.5f), 50, WaveType.Square,
+                                        0.3f);
                                 }
                                     break;
                                 case TweenResultType.Cancel:
@@ -94,11 +97,11 @@ namespace MonoGameSample
                                 }
                                     break;
                             }
-                        });
+                        }).Bind(newObj, (o, position) => o.Position = position);
 
                     if (spriteObjects.Count > 10)
                     {
-                        var firstObj = spriteObjects.Shuffle().FirstOrDefault(x => !x.IsMarkedDisposed);
+                        var firstObj = spriteObjects.Shuffle().FirstOrDefault(x => !spriteObjectsToDelete.Contains(x));
 
                         if (firstObj != null) Delete(firstObj);
                     }
@@ -116,8 +119,9 @@ namespace MonoGameSample
 
         private async ValueTask Delete(SimpleSpriteObject obj)
         {
-            obj.MarkForDelete();
-            await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc).Bind(obj, (o, size) => o.Size = size);
+            spriteObjectsToDelete.Add(obj);
+            await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
+                .WithOnEnd(result => Console.WriteLine(result.ResultType)).Bind(obj, (o, size) => o.Size = size);
             obj.Dispose();
             spriteObjects.Remove(obj);
         }
@@ -173,12 +177,12 @@ namespace MonoGameSample
 
         public float Size { get; set; } = 1;
         public Color Color { get; set; } = Color.White;
-        public bool IsMarkedDisposed { get; private set; }
 
         public CancellationToken CancellationToken => cts.Token;
 
         public void Dispose()
         {
+            Console.WriteLine($"{GetHashCode():x8} : Disposed");
             try
             {
                 cts.Cancel();
@@ -189,11 +193,6 @@ namespace MonoGameSample
             }
 
             cts.Dispose();
-        }
-
-        public void MarkForDelete()
-        {
-            IsMarkedDisposed = true;
         }
 
         public void Draw(SpriteBatch sb)

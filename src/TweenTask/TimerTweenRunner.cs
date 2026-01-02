@@ -8,12 +8,12 @@ namespace TweenTasks
         private static readonly TimerCallback timerCallback = Run;
 
         private readonly object gate = new();
-        private double currentTime;
-        private bool disposed;
-        private FreeListCore<ITweenRunnerWorkItem> list;
         private readonly long startTimeStamp;
         private readonly TimeProvider timeProvider;
         private readonly ITimer timer;
+        private double currentTime;
+        private bool disposed;
+        private FreeListCore<ITweenRunnerWorkItem> list;
 
         public TimerTweenRunner(TimeSpan period)
             : this(period, period, TimeProvider.System)

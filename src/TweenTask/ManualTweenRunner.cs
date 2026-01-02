@@ -63,6 +63,7 @@ namespace TweenTasks
                             self.list.Remove(i);
                             try
                             {
+                                Console.WriteLine(ex);
                                 //ObservableSystem.GetUnhandledExceptionHandler().Invoke(ex);
                             }
                             catch

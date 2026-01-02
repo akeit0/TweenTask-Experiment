@@ -5,4 +5,8 @@ namespace TweenTasks
         Complete,
         Cancel
     }
+
+    public readonly record struct TweenResult(TweenResultType ResultType)
+    {
+    }
 }
