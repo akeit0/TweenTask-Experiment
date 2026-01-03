@@ -17,10 +17,14 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <None
+                Include="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj"
+                PackagePath="analyzers\dotnet\cs"
+                Pack="true"
+                Visible="false" />
     </ItemGroup>
 
-    <ItemGroup><!--     <ProjectReference Analyzer ="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj" />-->
-    
+    <ItemGroup>
       <ProjectReference Include="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj">
           <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
           <OutputItemType>Analyzer</OutputItemType>
