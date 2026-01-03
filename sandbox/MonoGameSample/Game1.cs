@@ -13,16 +13,16 @@ namespace MonoGameSample;
 
 public class Game1 : Game
 {
-    private readonly GraphicsDeviceManager _graphics;
+    private readonly GraphicsDeviceManager graphics;
 
-    private readonly Random Rand = new();
+    private readonly Random rand = new();
     private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
     private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
 
-    private ManualTweenRunner? _runner;
-    private SpriteBatch _spriteBatch;
+    private ManualTweenRunner? runner;
+    private SpriteBatch spriteBatch;
 
-    private AudioSource soundFX;
+    private AudioSource soundFx;
 
     private bool spacePressed;
     public Texture2D Texture;
@@ -33,7 +33,7 @@ public class Game1 : Game
 
     public Game1()
     {
-        _graphics = new(this);
+        graphics = new(this);
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
     }
@@ -41,9 +41,9 @@ public class Game1 : Game
 
     protected override void LoadContent()
     {
-        _spriteBatch = new(GraphicsDevice);
-        soundFX = new();
-        Texture = new(_graphics.GraphicsDevice, 1, 1);
+        spriteBatch = new(GraphicsDevice);
+        soundFx = new();
+        Texture = new(graphics.GraphicsDevice, 1, 1);
         hudFont = Content.Load<SpriteFont>("Fonts/Hud");
         Texture.SetData([Color.White]);
     }
@@ -102,14 +102,14 @@ public class Game1 : Game
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
 
-        if (_runner == null)
+        if (runner == null)
         {
-            _runner = new(gameTime.TotalGameTime.TotalSeconds);
-            ITweenRunner.Default = _runner;
+            runner = new(gameTime.TotalGameTime.TotalSeconds);
+            ITweenRunner.Default = runner;
         }
         else
         {
-            _runner.Run(gameTime.TotalGameTime.TotalSeconds);
+            runner.Run(gameTime.TotalGameTime.TotalSeconds);
         }
 
         var bounds = Window.ClientBounds;
@@ -121,16 +121,16 @@ public class Game1 : Game
                 var newObj = new SimpleSpriteObject(Texture)
                 {
                     Position = center + new Vector2(bounds.Width / 2f, bounds.Height / 2f) *
-                        new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
-                    Size = 10 + 20 * Rand.NextSingle(),
-                    Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
+                        new Vector2(rand.NextSingle() - 0.5f, rand.NextSingle() - 0.5f),
+                    Size = 10 + 20 * rand.NextSingle(),
+                    Color = HsvToRgb(360 * rand.NextDouble(), 1, 1)
                 };
                 TotalCount++;
                 MoveTweenCount++;
                 spriteObjects.Add(newObj);
 
-                newObj.TweenPositionTo(200 * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
-                        1 + Rand.NextSingle())
+                newObj.TweenPositionTo(200 * new Vector2(rand.NextSingle() - 0.5f, rand.NextSingle() - 0.5f),
+                        1 + rand.NextSingle())
                     .WithRelative()
                     .WithEase(Ease.InBounce)
                     .WithCancellationToken(newObj.CancellationToken)
@@ -141,13 +141,13 @@ public class Game1 : Game
                         {
                             case TweenResultType.Complete:
                             {
-                                o.soundFX.PlayWave(440 * MathF.Pow(2, o.Rand.NextSingle() - 0.5f), 50, WaveType.Square,
+                                o.soundFx.PlayWave(440 * MathF.Pow(2, o.rand.NextSingle() - 0.5f), 50, WaveType.Square,
                                     0.3f);
                             }
                                 break;
                             case TweenResultType.Cancel:
                             {
-                                o.soundFX.PlayWave(0, 100, WaveType.Noise,
+                                o.soundFx.PlayWave(0, 100, WaveType.Noise,
                                     0.1f);
                             }
                                 break;
@@ -179,9 +179,9 @@ public class Game1 : Game
         {
             spriteObjectsToDelete.Add(obj);
             DeletingCount++;
-            if (Rand.NextDouble() < 0.5)
+            if (rand.NextDouble() < 0.5)
             {
-                obj.TweenRotationTo(MathF.PI * 4, 2).WithEase(Ease.InOutCubic).Schedule().Forget();
+                obj.TweenRotationTo(MathF.PI * 4, 2).WithEase(Ease.InOutCubic).Run();
                 await obj.TweenSizeTo(0, 2).WithEase(Ease.Linear)
                     .WithOnEnd(this, (game, result) =>
                     {
@@ -199,7 +199,7 @@ public class Game1 : Game
             {
                 obj.TweenRotationTo(-MathF.PI * 4, 1.5).WithEase(Ease.Linear).Schedule().Forget();
                 await TweenTask.Create(obj.Size, 0, 2)
-                    .Bind(obj, (o, size) => o.Size = size).WithEase(Ease.Linear)
+                    .Bind(obj,static (o, size) => o.Size = size).WithEase(Ease.Linear)
                     .Schedule();
                 DeletingCount--;
             }
@@ -216,13 +216,13 @@ public class Game1 : Game
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
-        _spriteBatch.Begin();
-        foreach (var spriteObject in spriteObjects) spriteObject.Draw(_spriteBatch);
-        _spriteBatch.DrawString(hudFont,
+        spriteBatch.Begin();
+        foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
+        spriteBatch.DrawString(hudFont,
             $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", default,
             Color.White);
 
-        _spriteBatch.End();
+        spriteBatch.End();
         base.Draw(gameTime);
     }
 }

@@ -69,7 +69,7 @@ public static class TweenBuilderExtension
     }
 
     extension<TValue, TOption, TAdapter>(TweenBuilder<TValue, TAdapter> builder)
-        where TAdapter : ITweenAdapter<TOption, TValue> 
+        where TAdapter : ITweenAdapter<TOption, TValue>
     {
         public TweenBuilder<TValue, TAdapter> WithOption(TOption option)
         {

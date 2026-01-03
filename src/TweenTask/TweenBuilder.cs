@@ -2,20 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using TweenTasks.Internal;
-
 namespace TweenTasks;
-
-public struct TweenBuilderEntry<TValue, TAdapter>(TAdapter adapter, double duration) where TAdapter : ITweenAdapter<TValue> 
-{
-    public TAdapter Adapter = adapter;
-    public double Duration = duration;
-}
-
-public struct TweenToBuilderEntry<TValue, TAdapter>(TAdapter adapter, double duration) where TAdapter : ITweenAdapter<TValue>, ITweenFromAdapter<TValue> 
-{
-    public TAdapter Adapter = adapter;
-    public double Duration = duration;
-}
 
 public static class TweenBuilder
 {
@@ -24,16 +11,18 @@ public static class TweenBuilder
     {
         return new TweenBuilderEntry<TValue, TAdapter>(adapter, duration);
     }
-    
-    public static TweenToBuilderEntry<TValue, TAdapter> CreateToEntry<TValue, TAdapter>(TAdapter adapter, double duration)
+
+    public static TweenToBuilderEntry<TValue, TAdapter> CreateToEntry<TValue, TAdapter>(TAdapter adapter,
+        double duration)
         where TAdapter : ITweenAdapter<TValue>, ITweenFromAdapter<TValue>
     {
         return new TweenToBuilderEntry<TValue, TAdapter>(adapter, duration);
     }
-    
+
     extension<TValue, TAdapter>(TweenBuilderEntry<TValue, TAdapter> builderEntry) where TAdapter : ITweenAdapter<TValue>
     {
-        public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Action<TState?, TValue> callback) where TState : class
+        public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Action<TState, TValue> callback)
+            where TState : class
         {
             var buffer = TweenBuilderBuffer<TValue, TAdapter>.Rent();
             buffer.Adapter = builderEntry.Adapter;
@@ -42,40 +31,43 @@ public static class TweenBuilder
             buffer.SetCallback = Unsafe.As<Action<object?, TValue>>(callback);
             return new(buffer, buffer.Version);
         }
-        
-        public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Action<TState, TValue> callback,CancellationToken cancellationToken) where TState : class
+
+        public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Action<TState, TValue> callback,
+            CancellationToken cancellationToken) where TState : class
         {
             var buffer = TweenBuilderBuffer<TValue, TAdapter>.Rent();
-            buffer.CancellationToken= cancellationToken;
+            buffer.CancellationToken = cancellationToken;
             buffer.Adapter = builderEntry.Adapter;
             buffer.Duration = builderEntry.Duration;
             buffer.GetSetState = state;
             buffer.SetCallback = Unsafe.As<Action<object?, TValue>>(callback);
             return new(buffer, buffer.Version);
         }
-          public TweenBuilder<TValue, TAdapter> Bind(Action< TValue> callback) 
+
+        public TweenBuilder<TValue, TAdapter> Bind(Action<TValue> callback)
         {
             var buffer = TweenBuilderBuffer<TValue, TAdapter>.Rent();
             buffer.Adapter = builderEntry.Adapter;
             buffer.Duration = builderEntry.Duration;
             buffer.GetSetState = callback;
-            buffer.SetCallback =static (o,value) => { Unsafe.As<Action<TValue>>(o)(value); };
+            buffer.SetCallback = static (o, value) => { Unsafe.As<Action<TValue>>(o)(value); };
             return new(buffer, buffer.Version);
         }
-        
-        public TweenBuilder<TValue, TAdapter> Bind(Action< TValue> callback,CancellationToken cancellationToken) 
+
+        public TweenBuilder<TValue, TAdapter> Bind(Action<TValue> callback, CancellationToken cancellationToken)
         {
             var buffer = TweenBuilderBuffer<TValue, TAdapter>.Rent();
-            buffer.CancellationToken= cancellationToken;
+            buffer.CancellationToken = cancellationToken;
             buffer.Adapter = builderEntry.Adapter;
             buffer.Duration = builderEntry.Duration;
             buffer.GetSetState = callback;
-            buffer.SetCallback =static (o,value) => { Unsafe.As<Action<TValue>>(o)(value); };
+            buffer.SetCallback = static (o, value) => { Unsafe.As<Action<TValue>>(o)(value); };
             return new(buffer, buffer.Version);
         }
     }
 
-    extension<TValue, TAdapter>(TweenToBuilderEntry<TValue, TAdapter> builderEntry) where TAdapter : ITweenAdapter<TValue>, ITweenFromAdapter<TValue>
+    extension<TValue, TAdapter>(TweenToBuilderEntry<TValue, TAdapter> builderEntry)
+        where TAdapter : ITweenAdapter<TValue>, ITweenFromAdapter<TValue>
     {
         public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Func<TState, TValue> getCallback,
             Action<TState, TValue> setCallback) where TState : class
@@ -88,9 +80,9 @@ public static class TweenBuilder
             buffer.SetCallback = Unsafe.As<Action<object?, TValue>>(setCallback);
             return new(buffer, buffer.Version);
         }
-        
+
         public TweenBuilder<TValue, TAdapter> Bind<TState>(TState state, Func<TState, TValue> getCallback,
-            Action<TState, TValue> setCallback,CancellationToken cancellationToken) where TState : class
+            Action<TState, TValue> setCallback, CancellationToken cancellationToken) where TState : class
         {
             var buffer = TweenBuilderBuffer<TValue, TAdapter>.Rent();
             buffer.CancellationToken = cancellationToken;
@@ -102,8 +94,9 @@ public static class TweenBuilder
             return new(buffer, buffer.Version);
         }
     }
-    
-    extension<TValue, TAdapter>(TweenBuilder<TValue, TAdapter>  builder) where TAdapter : ITweenAdapter<TValue>, IRelativeAdapter<TValue>
+
+    extension<TValue, TAdapter>(TweenBuilder<TValue, TAdapter> builder)
+        where TAdapter : ITweenAdapter<TValue>, IRelativeAdapter<TValue>
     {
         public TweenBuilder<TValue, TAdapter> WithRelative()
         {
@@ -114,6 +107,7 @@ public static class TweenBuilder
     }
 }
 
+[MustUseThis]
 public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapter : ITweenAdapter<TValue>
 {
     internal readonly TweenBuilderBuffer<TValue, TAdapter> Buffer;
@@ -130,7 +124,20 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
     {
         if (Buffer.Version != Version) throw new InvalidOperationException("Tween builder Version doesn't match");
     }
-    
+    public void Run()
+    {
+        Validate();
+
+        Buffer.ApplyAdapterState();
+        var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
+            Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, Buffer.SetCallback, Buffer.GetSetState,
+            Buffer.OnEndAction, Buffer.OnEndState,
+            Buffer.CancellationToken,
+            out var token);
+
+        Dispose();
+        (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
+    }
 
     public TweenTask Schedule()
     {
@@ -142,7 +149,25 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
             Buffer.OnEndAction, Buffer.OnEndState,
             Buffer.CancellationToken,
             out var token);
+
+        Dispose();
         (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
+        return new(
+            promise,
+            token);
+    }
+
+    public TweenTask Build()
+    {
+        Validate();
+
+        Buffer.ApplyAdapterState();
+        var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
+            Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, Buffer.SetCallback, Buffer.GetSetState,
+            Buffer.OnEndAction, Buffer.OnEndState,
+            Buffer.CancellationToken,
+            out var token);
+        Dispose();
         return new(
             promise,
             token);

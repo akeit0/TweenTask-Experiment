@@ -19,4 +19,12 @@
         </PackageReference>
     </ItemGroup>
 
+    <ItemGroup><!--     <ProjectReference Analyzer ="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj" />-->
+    
+      <ProjectReference Include="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj">
+          <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+          <OutputItemType>Analyzer</OutputItemType>
+      </ProjectReference>
+    </ItemGroup>
+
 </Project>

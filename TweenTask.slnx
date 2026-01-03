@@ -1,5 +1,6 @@
 <Solution>
-    <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj"/>
-    <Project Path="sandbox/MonoGameSample/MonoGameSample.csproj"/>
-    <Project Path="src/TweenTask/TweenTask.csproj"/>
+    <Project Path="MustUseThisAnalyzer/MustUseThisAnalyzer/MustUseThisAnalyzer.csproj" />
+    <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />
+    <Project Path="sandbox/MonoGameSample/MonoGameSample.csproj" />
+    <Project Path="src/TweenTask/TweenTask.csproj" />
 </Solution>
