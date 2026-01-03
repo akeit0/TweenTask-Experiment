@@ -62,7 +62,21 @@ public struct TweenTaskCompletionSourceCore
 
     public bool IsActive => (flags & TweenTaskCompletionSourceFlags.Pooled) == 0;
     
-    public bool IsPreserved => (flags & TweenTaskCompletionSourceFlags.Preserved) != 0;
+    public bool IsPreserved
+    {
+        get => (flags & TweenTaskCompletionSourceFlags.Preserved) != 0;
+        set
+        {
+            if (value)
+            {
+                flags |= TweenTaskCompletionSourceFlags.Preserved;
+            }
+            else
+            {
+                flags &= ~TweenTaskCompletionSourceFlags.Preserved;
+            }
+        }
+    }
 
     [DebuggerHidden]
     public void Reset()

@@ -4,7 +4,11 @@ using TweenTasks.Internal;
 
 namespace TweenTasks;
 
-internal interface ITweenBuilderBuffer
+internal interface IReturnable{
+
+    public bool TryReturn();
+}
+internal interface ITweenBuilderBuffer :IReturnable
 {
     public TweenPromise CreatePromise(out short token);
 }
@@ -58,11 +62,11 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
             OnEndAction, OnEndState,
             CancellationToken,
             out  token);
-        Return();
+        TryReturn();
         return promise;
     }
 
-    public void Return()
+    public bool TryReturn()
     {
         PlaybackSpeed = 1;
         Runner = null!;
@@ -71,7 +75,8 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         SetCallback = null;
         GetSetState = null;
         OnEndAction = null;
-        if (Version != ushort.MaxValue) taskPool.TryPush(this);
+        if (Version != ushort.MaxValue) return taskPool.TryPush(this);
+        return false;
     }
 }
 

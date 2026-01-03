@@ -188,11 +188,11 @@ public class Game1 : Game
                 TweenSequence.Create()
                     .Append(newObj.TweenRotationTo(MathF.PI * 2, 1))
                     .Append(newObj.TweenPositionTo(new Vector2(100, 0), 1).WithRelative())
+                    .Append(newObj.TweenPositionTo(new Vector2(0, 100), 1).WithRelative())
                     .WithOnEnd(this,
                         static (o, result) =>
                         {
                             o.MoveTweenCount--;
-                            Console.WriteLine(result.ResultType);
                             switch (result.ResultType)
                             {
                                 case TweenResultType.Complete:
@@ -294,49 +294,60 @@ public static class TweenExtensions
             return TweenBuilder
                 .CreateToEntry<Vector2, Vector2TweenAdapter>(new(position), duration)
                 .Bind(obj, static (obj) => obj.Position,
-                    static (obj, v) => obj.Position = v);
+                    static (obj, v) => obj.Position = v).WithCancellationToken(obj.CancellationToken);
         }
 
         public TweenBuilder<Vector2, Vector2TweenAdapter> TweenPosition(Vector2 from,
             Vector2 to, double duration)
         {
             return TweenBuilder.CreateEntry<Vector2, Vector2TweenAdapter>(new(from, to), duration)
-                .Bind(obj, static (obj, v) => obj.Position = v);
+                .Bind(obj, static (obj, v) => obj.Position = v).WithCancellationToken(obj.CancellationToken);
         }
 
         public TweenBuilder<float, FloatTweenAdapter> TweenSizeTo(float to, double duration)
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v);
+                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v).WithCancellationToken(obj.CancellationToken);
         }
 
         public TweenBuilder<float, FloatTweenAdapter> TweenRotationTo(float to, double duration)
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v);
+                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v).WithCancellationToken(obj.CancellationToken);
         }
     }
 }
 
-public class SimpleSpriteObject(Texture2D texture) : IDisposable
+public class SimpleSpriteObject : IDisposable
 {
     private readonly CancellationTokenSource cts = new();
-    public Texture2D Texture { get; } = texture;
+
+    public SimpleSpriteObject(Texture2D texture)
+    {
+        Texture = texture;
+        tokenCache =cts.Token;
+    }
+
+    public Texture2D Texture { get; }
 
     public Vector2 Position
     {
         get
         {
-            if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
-
+            if (tokenCache.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(tokenCache);
+            }
             return field;
         }
         set
         {
-            if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
-
+            if (tokenCache.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(tokenCache);
+            }
             field = value;
         }
     }
@@ -344,8 +355,9 @@ public class SimpleSpriteObject(Texture2D texture) : IDisposable
     public float Size { get; set; } = 1;
     public float Rotation { get; set; } = 0;
     public Color Color { get; set; } = Color.White;
+    private CancellationToken tokenCache;
 
-    public CancellationToken CancellationToken => cts.Token;
+    public CancellationToken CancellationToken => tokenCache;
 
     public void Dispose()
     {
@@ -358,6 +370,7 @@ public class SimpleSpriteObject(Texture2D texture) : IDisposable
             Console.WriteLine(e + "\n" + new StackTrace());
         }
 
+        //Console.WriteLine("Dispose\n" + new StackTrace());
         cts.Dispose();
     }
 

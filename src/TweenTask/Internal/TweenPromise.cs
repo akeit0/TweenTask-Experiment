@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 
 namespace TweenTasks.Internal;
 
-internal abstract class TweenPromise : IValueTaskSource
+internal abstract class TweenPromise : IValueTaskSource,IReturnable
 {
     protected CancellationToken CancellationToken;
     protected TweenTaskCompletionSourceCore Core;
@@ -16,6 +17,18 @@ internal abstract class TweenPromise : IValueTaskSource
     public double PlaybackSpeed;
     protected object? State;
     public double Time;
+
+    public bool IsPreserved
+    {
+        get
+        {
+            return Core.IsPreserved;
+        }
+        set
+        {
+            Core.IsPreserved = value;
+        }
+    }
 
     public virtual void SetTime(double time)
     {
@@ -57,7 +70,14 @@ internal abstract class TweenPromise : IValueTaskSource
     public void OnCompleted(Action<object> continuation, object state, short token,
         ValueTaskSourceOnCompletedFlags flags)
     {
-        Core.OnCompleted(continuation, state, token);
+        try
+        {
+            Core.OnCompleted(continuation, state, token);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e + new StackTrace().ToString());
+        }
     }
 
     public abstract bool TryComplete(short token);
@@ -109,11 +129,11 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
     public double LatestTime;
 
     public static TweenSequencePromise Create(ReadOnlySpan<TweenSequenceItem> items, double delay, double duration,
-        double playBackSpeed,Action<object?, TweenResult>? endCallback, object? endState,
+        double playBackSpeed, Action<object?, TweenResult>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
         var promise = new TweenSequencePromise();
-
+        
         promise.SequenceItems = items.ToArray();
         promise.Delay = delay;
         promise.Duration = duration;
@@ -140,8 +160,16 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
 
     public override bool TryReturn()
     {
-        if (Core.IsPreserved) return false;
         Core.Reset();
+        foreach (ref var sequenceItem in SequenceItems.AsSpan())
+        {
+            object p = sequenceItem.Promise;
+            if (p is TweenPromise tweenPromise)
+            {
+                tweenPromise.IsPreserved = false;
+            }
+            ((IReturnable)p).TryReturn();
+        }
         CancellationToken = CancellationToken.None;
         return true;
     }
@@ -173,10 +201,28 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
 
             if (sequenceItem.Position > LatestTime && sequenceItem.Position < position)
             {
-                sequenceItem.Promise =  Unsafe.As<ITweenBuilderBuffer>((sequenceItem.Promise).CreatePromise(out _));
+                var t = (sequenceItem.Promise).CreatePromise(out _);
+                t.IsPreserved = true;
+                sequenceItem.Promise = Unsafe.As<ITweenBuilderBuffer>(t);
             }
 
-            Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(position - sequenceItem.Position);
+            try
+            {
+                Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(position - sequenceItem.Position);
+            }
+            catch (Exception e)
+            {
+                if (e is OperationCanceledException operationCanceledException)
+                {
+                    Console.WriteLine(CancellationToken==operationCanceledException.CancellationToken);
+                }
+                if (Core.IsSetContinuationWithAwait)
+                    Core.TrySetCanceled(CancellationToken);
+                else
+                    ReturnWithContinuation(TweenResultType.Cancel);
+                
+                return false;
+            }
         }
 
         LatestTime = Math.Max(LatestTime, position);
@@ -212,7 +258,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         CancellationToken cancellationToken, out short token)
     {
         if (!pool.TryPop(out var promise)) promise = new();
-
+        Debug.Assert(!promise.Core.IsSetContinuationWithAwait);
         promise.Delay = delay;
         promise.Duration = duration;
         promise.PlaybackSpeed = playBackSpeed;
@@ -222,6 +268,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         promise.adapter = adapter;
         promise.CancellationToken = cancellationToken;
         promise.Core.Activate();
+        
         if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
         promise.Time = 0;
         token = promise.Core.Version;

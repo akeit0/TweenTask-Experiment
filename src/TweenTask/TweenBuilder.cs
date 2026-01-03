@@ -175,6 +175,6 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
 
     public void Dispose()
     {
-        Buffer?.Return();
+        Buffer?.TryReturn();
     }
 }

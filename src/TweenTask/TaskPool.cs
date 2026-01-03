@@ -21,6 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -33,32 +34,35 @@ namespace TweenTasks;
 public struct TaskPool<T>
     where T : class, ITaskPoolNode<T>
 {
-    private int gate;
-    private T? root;
+    static readonly int MaxPoolSize = short.MaxValue;
 
-    public int Size { get; private set; }
+    int gate;
+    int size;
+    T root;
+
+    public readonly int Size => size;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryPop([NotNullWhen(true)] out T? result)
+    public bool TryPop(out T result)
     {
         if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
         {
             var v = root;
-            if (!(v is null))
+            if (v != null)
             {
                 ref var nextNode = ref v.NextNode;
                 root = nextNode;
                 nextNode = null;
-                Size--;
+                size--;
                 result = v;
                 Volatile.Write(ref gate, 0);
                 return true;
             }
 
+            Debug.Assert(size == 0);
             Volatile.Write(ref gate, 0);
         }
-
-        result = null;
+        result = default;
         return false;
     }
 
@@ -67,18 +71,19 @@ public struct TaskPool<T>
     {
         if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
         {
-            if (Size < short.MaxValue)
+            if (size < MaxPoolSize)
             {
                 item.NextNode = root;
                 root = item;
-                Size++;
+                size++;
                 Volatile.Write(ref gate, 0);
                 return true;
             }
-
-            Volatile.Write(ref gate, 0);
+            else
+            {
+                Volatile.Write(ref gate, 0);
+            }
         }
-
         return false;
     }
 }
