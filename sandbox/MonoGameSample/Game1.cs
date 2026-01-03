@@ -192,6 +192,7 @@ public class Game1 : Game
                         static (o, result) =>
                         {
                             o.MoveTweenCount--;
+                            Console.WriteLine(result.ResultType);
                             switch (result.ResultType)
                             {
                                 case TweenResultType.Complete:

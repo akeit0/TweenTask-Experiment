@@ -14,9 +14,9 @@ internal static class DiagnosticDescriptors
             id: "MUSTUSE001",
             title: "Return value must be used",
             messageFormat:
-            "The return value of '{0}' must be used because its return type is annotated with [MustUseThis]",
+            "The return value of '{0}' must be used because its return type is annotated with [MustUseThis]. \"{1}\"",
             category: "Usage",
-            defaultSeverity: DiagnosticSeverity.Warning,
+            defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
     internal static readonly DiagnosticDescriptor InternalError =
@@ -76,16 +76,26 @@ public sealed class MustUseReturnValueAnalyzer : DiagnosticAnalyzer
         if (!IsSupported(methodSymbol))
             return;
 
-        if (!MustUseReturnValueOf(methodSymbol))
+        if (!MustUseReturnValueOf(methodSymbol,out var arg))
             return;
 
         var display = $"{methodSymbol.ContainingType.Name}.{methodSymbol.Name}";
-
-        context.ReportDiagnostic(
-            Diagnostic.Create(
-                DiagnosticDescriptors.MustUseReturnValue,
-                ess.GetLocation(),
-                display));
+        if (ess.Expression is InvocationExpressionSyntax lastInvocation)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.MustUseReturnValue,
+                    lastInvocation.Expression.GetLastToken().GetLocation(),
+                    display,arg??""));
+        }
+        else
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    DiagnosticDescriptors.MustUseReturnValue,
+                    ess.GetLocation(),
+                    display,arg??""));
+        }
     }
 
     private static bool IsSupported(IMethodSymbol methodSymbol)
@@ -99,23 +109,32 @@ public sealed class MustUseReturnValueAnalyzer : DiagnosticAnalyzer
         };
     }
 
-    private bool MustUseReturnValueOf(IMethodSymbol methodSymbol)
+    private bool MustUseReturnValueOf(IMethodSymbol methodSymbol,out string? arg)
     {
+        arg = null;
         if (methodSymbol.ReturnsVoid)
             return false;
 
         // 1) 通常: 戻り値の型に MustUse が付いているか
         var returnType = methodSymbol.ReturnType;
-        return HasMustUseAttribute(returnType);
-            
+        return HasMustUseAttribute(returnType,out arg);
     }
 
-    private static bool HasMustUseAttribute(ISymbol symbol)
+    private static bool HasMustUseAttribute(ISymbol symbol,out string? arg)
     {
+        arg = null;
         foreach (var attributeData in symbol.GetAttributes())
         {
             var attr = attributeData.AttributeClass;
-            if (attr?.Name is "MustUseThisAttribute" or "MustUseThis") return true;
+            if (attr?.Name is "MustUseThisAttribute" or "MustUseThis")
+            {
+                var arguments = attributeData.ConstructorArguments;
+                if (attributeData.ConstructorArguments.Length == 1)
+                {
+                    arg =arguments[0].Value?.ToString();
+                }
+                return true;
+            }
         }
 
         return false;

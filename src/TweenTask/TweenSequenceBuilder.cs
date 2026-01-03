@@ -4,7 +4,7 @@ using System.Threading;
 using TweenTasks.Internal;
 
 namespace TweenTasks;
-[MustUseThis]
+[MustUseThis("Schedule or Build")]
 public class TweenSequenceBuilder
 {
     internal List<TweenSequenceItem> Tweens = new ();

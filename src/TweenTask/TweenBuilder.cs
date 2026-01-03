@@ -107,7 +107,7 @@ public static class TweenBuilder
     }
 }
 
-[MustUseThis]
+[MustUseThis("Schedule or Build")]
 public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapter : ITweenAdapter<TValue>
 {
     internal readonly TweenBuilderBuffer<TValue, TAdapter> Buffer;
