@@ -37,7 +37,8 @@ public enum TweenTaskCompletionSourceFlags
     SetContinuationWithAwait = 1,
     Pooled = 2,
     Wrapped = 4,
-    HasHandledError = 8
+    HasHandledError = 8,
+    Preserved =16,
 }
 
 [StructLayout(LayoutKind.Auto)]
@@ -60,6 +61,8 @@ public struct TweenTaskCompletionSourceCore
     }
 
     public bool IsActive => (flags & TweenTaskCompletionSourceFlags.Pooled) == 0;
+    
+    public bool IsPreserved => (flags & TweenTaskCompletionSourceFlags.Preserved) != 0;
 
     [DebuggerHidden]
     public void Reset()

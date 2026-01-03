@@ -3,5 +3,5 @@ namespace TweenTasks;
 public interface ITweenRunnerWorkItem
 {
     // true, continue
-    bool MoveNext(double time);
+    bool MoveNext(double deltaTime);
 }

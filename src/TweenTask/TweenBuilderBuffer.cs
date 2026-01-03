@@ -1,9 +1,15 @@
 using System;
 using System.Threading;
+using TweenTasks.Internal;
 
 namespace TweenTasks;
 
-internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>
+internal interface ITweenBuilderBuffer
+{
+    public TweenPromise CreatePromise(out short token);
+}
+
+internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>,ITweenBuilderBuffer
     where TAdapter : ITweenAdapter<TValue>
 {
     public TAdapter Adapter;
@@ -42,7 +48,18 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         {
             Adapter.ApplyFrom(Adapter.From!, IsRelative);
         }
+    }
 
+    public TweenPromise CreatePromise(out short token)
+    {
+        ApplyAdapterState();
+        var promise = TweenPromise<TValue, TAdapter>.Create(Delay,
+            Duration, PlaybackSpeed, Ease, Adapter, SetCallback, GetSetState,
+            OnEndAction, OnEndState,
+            CancellationToken,
+            out  token);
+        Return();
+        return promise;
     }
 
     public void Return()
@@ -50,6 +67,10 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         PlaybackSpeed = 1;
         Runner = null!;
         Adapter = default;
+        OnEndState = null;
+        SetCallback = null;
+        GetSetState = null;
+        OnEndAction = null;
         if (Version != ushort.MaxValue) taskPool.TryPush(this);
     }
 }

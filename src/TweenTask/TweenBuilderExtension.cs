@@ -55,17 +55,17 @@ public static class TweenBuilderExtension
             builder.Buffer.PlaybackSpeed = speed;
             return builder;
         }
+    }
 
-        // public TweenTask Bind<TState>(TState state, Action<TState, TValue> callback) where TState : class
-        // {
-        //     return builder.Bind(Unsafe.As<Action<object?, TValue>>(callback), state);
-        // }
-        //
-        // public TweenTask Bind<TState>(TState state, Action<TState, TValue> callback,
-        //     CancellationToken cancellationToken) where TState : class
-        // {
-        //     return builder.Bind(state, Unsafe.As<Action<object?, TValue>>(callback), cancellationToken);
-        // }
+    extension(TweenSequenceBuilder builder) 
+    {
+        public TweenSequenceBuilder WithOnEnd<TState>(TState state,
+            Action<TState, TweenResult> callback) where TState : class
+        {
+            builder.EndState = state;
+            builder.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
+            return builder;
+        }
     }
 
     extension<TValue, TOption, TAdapter>(TweenBuilder<TValue, TAdapter> builder)

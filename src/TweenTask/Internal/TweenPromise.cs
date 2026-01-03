@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 
@@ -13,7 +15,14 @@ internal abstract class TweenPromise : IValueTaskSource
     protected Ease Ease;
     public double PlaybackSpeed;
     protected object? State;
-    protected double Time;
+    public double Time;
+
+    public virtual void SetTime(double time)
+    {
+        Time = time;
+    }
+
+    public short Version => Core.Version;
 
     public void GetResult(short token)
     {
@@ -76,6 +85,115 @@ internal abstract class TweenPromise : IValueTaskSource
     public abstract bool TryReturn();
 }
 
+internal struct TweenSequenceItem : IComparable<TweenSequenceItem>
+{
+    public TweenSequenceItem(double position, ITweenBuilderBuffer promise)
+    {
+        Position = position;
+        Promise = promise;
+    }
+
+    public double Position;
+    public ITweenBuilderBuffer Promise;
+
+    public int CompareTo(TweenSequenceItem other)
+    {
+        return Position.CompareTo(other.Position);
+    }
+}
+
+internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
+{
+    public TweenSequenceItem[] SequenceItems = [];
+
+    public double LatestTime;
+
+    public static TweenSequencePromise Create(ReadOnlySpan<TweenSequenceItem> items, double delay, double duration,
+        double playBackSpeed,Action<object?, TweenResult>? endCallback, object? endState,
+        CancellationToken cancellationToken, out short token)
+    {
+        var promise = new TweenSequencePromise();
+
+        promise.SequenceItems = items.ToArray();
+        promise.Delay = delay;
+        promise.Duration = duration;
+        promise.PlaybackSpeed = playBackSpeed;
+        promise.CancellationToken = cancellationToken;
+        promise.Core.Activate();
+        if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
+        promise.Time = 0;
+        token = promise.Core.Version;
+        promise.LatestTime = -1;
+        return promise;
+    }
+
+    public override bool TryComplete(short token)
+    {
+        if (Core.Version != token) return false;
+        if (Core.IsSetContinuationWithAwait)
+            Core.TrySetResult();
+        else
+            ReturnWithContinuation(TweenResultType.Complete);
+
+        return true;
+    }
+
+    public override bool TryReturn()
+    {
+        if (Core.IsPreserved) return false;
+        Core.Reset();
+        CancellationToken = CancellationToken.None;
+        return true;
+    }
+
+    public bool MoveNext(double deltaTime)
+    {
+        if (!Core.IsActive) return false;
+        Time += PlaybackSpeed * deltaTime;
+        var position = Time - Delay;
+        var progress = Math.Min(1, position / Duration);
+        if (CancellationToken.IsCancellationRequested)
+        {
+            if (Core.IsSetContinuationWithAwait)
+                Core.TrySetCanceled(CancellationToken);
+            else
+                ReturnWithContinuation(TweenResultType.Cancel);
+
+            return false;
+        }
+
+        if (Delay > Time) return true;
+
+        foreach (ref var sequenceItem in SequenceItems.AsSpan())
+        {
+            if (sequenceItem.Position > position)
+            {
+                break;
+            }
+
+            if (sequenceItem.Position > LatestTime && sequenceItem.Position < position)
+            {
+                sequenceItem.Promise =  Unsafe.As<ITweenBuilderBuffer>((sequenceItem.Promise).CreatePromise(out _));
+            }
+
+            Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(position - sequenceItem.Position);
+        }
+
+        LatestTime = Math.Max(LatestTime, position);
+        if (progress < 1) return true;
+
+        if (Core.IsSetContinuationWithAwait)
+        {
+            Core.TrySetResult();
+            return false;
+        }
+
+        ReturnWithContinuation(TweenResultType.Complete);
+
+        return false;
+    }
+}
+
 internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     ITaskPoolNode<TweenPromise<T, TAdapter>>
     where TAdapter : ITweenAdapter<T>
@@ -86,6 +204,70 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
 
     private TweenPromise<T, TAdapter>? next;
     ref TweenPromise<T, TAdapter>? ITaskPoolNode<TweenPromise<T, TAdapter>>.NextNode => ref next;
+
+
+    public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, Ease ease,
+        TAdapter adapter,
+        Action<object?, T>? action, object? state, Action<object?, TweenResult>? endCallback, object? endState,
+        CancellationToken cancellationToken, out short token)
+    {
+        if (!pool.TryPop(out var promise)) promise = new();
+
+        promise.Delay = delay;
+        promise.Duration = duration;
+        promise.PlaybackSpeed = playBackSpeed;
+        promise.Ease = ease;
+        promise.action = action;
+        promise.State = state;
+        promise.adapter = adapter;
+        promise.CancellationToken = cancellationToken;
+        promise.Core.Activate();
+        if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
+        promise.Time = 0;
+        token = promise.Core.Version;
+        return promise;
+    }
+
+    public override void SetTime(double time)
+    {
+        var lastTime = Time;
+        Time = time;
+        var position = time - Delay;
+        var progress = Math.Min(1, position / Duration);
+        if (CancellationToken.IsCancellationRequested)
+        {
+            if (Core.IsSetContinuationWithAwait)
+                Core.TrySetCanceled(CancellationToken);
+            else
+                ReturnWithContinuation(TweenResultType.Cancel);
+
+            return;
+        }
+
+        if (Delay > time) return;
+
+        if (progress > 1)
+        {
+            if (lastTime > time - Delay)
+            {
+                return;
+            }
+        }
+
+        action?.Invoke(State, adapter.Evaluate(EaseUtility.Evaluate(progress, Ease)));
+        if (progress < 1) return;
+
+        if (Core.IsSetContinuationWithAwait)
+        {
+            Core.TrySetResult();
+            return;
+        }
+
+
+        ReturnWithContinuation(TweenResultType.Complete);
+
+        return;
+    }
 
     public bool MoveNext(double deltaTime)
     {
@@ -121,28 +303,6 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         return false;
     }
 
-    public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, Ease ease,
-        TAdapter adapter,
-        Action<object?, T>? action, object? state, Action<object?, TweenResult>? endCallback, object? endState,
-        CancellationToken cancellationToken, out short token)
-    {
-        if (!pool.TryPop(out var promise)) promise = new();
-
-        promise.Delay = delay;
-        promise.Duration = duration;
-        promise.PlaybackSpeed = playBackSpeed;
-        promise.Ease = ease;
-        promise.action = action;
-        promise.State = state;
-        promise.adapter = adapter;
-        promise.CancellationToken = cancellationToken;
-        promise.Core.Activate();
-        if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
-        promise.Time = 0;
-        token = promise.Core.Version;
-        return promise;
-    }
-
 
     public override bool TryComplete(short token)
     {
@@ -158,6 +318,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
 
     public override bool TryReturn()
     {
+        if (Core.IsPreserved) return false;
         Core.Reset();
         CancellationToken = CancellationToken.None;
         action = null!;

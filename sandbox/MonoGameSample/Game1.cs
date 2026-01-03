@@ -25,6 +25,7 @@ public class Game1 : Game
     private AudioSource soundFx;
 
     private bool spacePressed;
+    private bool jKeyPressed;
     public Texture2D Texture;
     private SpriteFont hudFont;
     private int MoveTweenCount { get; set; }
@@ -169,6 +170,61 @@ public class Game1 : Game
             spacePressed = false;
         }
 
+        if (Keyboard.GetState().IsKeyDown(Keys.J))
+        {
+            if (!jKeyPressed)
+            {
+                var newObj = new SimpleSpriteObject(Texture)
+                {
+                    Position = center + new Vector2(bounds.Width / 2f, bounds.Height / 2f) *
+                        new Vector2(rand.NextSingle() - 0.5f, rand.NextSingle() - 0.5f),
+                    Size = 10 + 20 * rand.NextSingle(),
+                    Color = HsvToRgb(360 * rand.NextDouble(), 1, 1)
+                };
+                TotalCount++;
+                MoveTweenCount++;
+                spriteObjects.Add(newObj);
+
+                TweenSequence.Create()
+                    .Append(newObj.TweenRotationTo(MathF.PI * 2, 1))
+                    .Append(newObj.TweenPositionTo(new Vector2(100, 0), 1).WithRelative())
+                    .WithOnEnd(this,
+                        static (o, result) =>
+                        {
+                            o.MoveTweenCount--;
+                            switch (result.ResultType)
+                            {
+                                case TweenResultType.Complete:
+                                {
+                                    o.soundFx.PlayWave(440 * MathF.Pow(2, o.rand.NextSingle() - 0.5f), 50,
+                                        WaveType.Square,
+                                        0.3f);
+                                }
+                                    break;
+                                case TweenResultType.Cancel:
+                                {
+                                    o.soundFx.PlayWave(0, 100, WaveType.Noise,
+                                        0.1f);
+                                }
+                                    break;
+                            }
+                        }).Schedule(newObj.CancellationToken);
+
+                if (spriteObjects.Count > 10)
+                {
+                    var firstObj = spriteObjects.Shuffle().FirstOrDefault(x => !spriteObjectsToDelete.Contains(x));
+
+                    if (firstObj != null) Delete(firstObj);
+                }
+            }
+
+            jKeyPressed = true;
+        }
+        else
+        {
+            jKeyPressed = false;
+        }
+
         base.Update(gameTime);
     }
 
@@ -199,7 +255,7 @@ public class Game1 : Game
             {
                 obj.TweenRotationTo(-MathF.PI * 4, 1.5).WithEase(Ease.Linear).Schedule().Forget();
                 await TweenTask.Create(obj.Size, 0, 2)
-                    .Bind(obj,static (o, size) => o.Size = size).WithEase(Ease.Linear)
+                    .Bind(obj, static (o, size) => o.Size = size).WithEase(Ease.Linear)
                     .Schedule();
                 DeletingCount--;
             }
