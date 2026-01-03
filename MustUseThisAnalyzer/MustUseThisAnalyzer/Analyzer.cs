@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
-namespace MustUseAnalyzer
+namespace MustUseThisAnalyzer
 {
     internal static class DiagnosticDescriptors
     {
