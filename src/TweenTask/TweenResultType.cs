@@ -1,12 +1,11 @@
-namespace TweenTasks
-{
-    public enum TweenResultType : byte
-    {
-        Complete,
-        Cancel
-    }
+namespace TweenTasks;
 
-    public readonly record struct TweenResult(TweenResultType ResultType)
-    {
-    }
+public enum TweenResultType : byte
+{
+    Complete,
+    Cancel
+}
+
+public readonly record struct TweenResult(TweenResultType ResultType)
+{
 }

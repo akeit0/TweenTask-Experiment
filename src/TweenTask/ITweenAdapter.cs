@@ -1,20 +1,19 @@
 using System;
 
-namespace TweenTasks
+namespace TweenTasks;
+
+public interface ITweenAdapter<in TOption,  T> : ITweenAdapter<T>
 {
-    public interface ITweenAdapter<in TOption, out T> : ITweenAdapter<T>
-    {
-        void WithOption(TOption option)
-        {
-        }
-    }
-
-    public struct NoOption
-    {
-    }
-
-    public interface ITweenAdapter<out T> : IDisposable
-    {
-        T Evaluate(double progress);
-    }
+    void WithOption(TOption option);
 }
+
+
+public interface ITweenAdapter<T> 
+{
+    T Evaluate(double progress);
+    T? From =>default(T);
+    void ApplyFrom(T from,bool isRelative){}
+}
+
+public interface IRelativeAdapter<T>;
+public interface ITweenFromAdapter<T>:ITweenAdapter<T> ;

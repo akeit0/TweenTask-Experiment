@@ -26,60 +26,59 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace TweenTasks
+namespace TweenTasks;
+
+// mutable struct, don't mark readonly.
+[StructLayout(LayoutKind.Auto)]
+public struct TaskPool<T>
+    where T : class, ITaskPoolNode<T>
 {
-    // mutable struct, don't mark readonly.
-    [StructLayout(LayoutKind.Auto)]
-    public struct TaskPool<T>
-        where T : class, ITaskPoolNode<T>
+    private int gate;
+    private T? root;
+
+    public int Size { get; private set; }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryPop([NotNullWhen(true)] out T? result)
     {
-        private int gate;
-        private T? root;
-
-        public int Size { get; private set; }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryPop([NotNullWhen(true)] out T? result)
+        if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
         {
-            if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
+            var v = root;
+            if (!(v is null))
             {
-                var v = root;
-                if (!(v is null))
-                {
-                    ref var nextNode = ref v.NextNode;
-                    root = nextNode;
-                    nextNode = null;
-                    Size--;
-                    result = v;
-                    Volatile.Write(ref gate, 0);
-                    return true;
-                }
-
+                ref var nextNode = ref v.NextNode;
+                root = nextNode;
+                nextNode = null;
+                Size--;
+                result = v;
                 Volatile.Write(ref gate, 0);
+                return true;
             }
 
-            result = null;
-            return false;
+            Volatile.Write(ref gate, 0);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryPush(T item)
-        {
-            if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
-            {
-                if (Size < short.MaxValue)
-                {
-                    item.NextNode = root;
-                    root = item;
-                    Size++;
-                    Volatile.Write(ref gate, 0);
-                    return true;
-                }
+        result = null;
+        return false;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryPush(T item)
+    {
+        if (Interlocked.CompareExchange(ref gate, 1, 0) == 0)
+        {
+            if (Size < short.MaxValue)
+            {
+                item.NextNode = root;
+                root = item;
+                Size++;
                 Volatile.Write(ref gate, 0);
+                return true;
             }
 
-            return false;
+            Volatile.Write(ref gate, 0);
         }
+
+        return false;
     }
 }

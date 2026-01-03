@@ -9,175 +9,180 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using TweenTasks;
 
-namespace MonoGameSample
+namespace MonoGameSample;
+
+public class Game1 : Game
 {
-    public class Game1 : Game
+    private readonly GraphicsDeviceManager _graphics;
+
+    private readonly Random Rand = new();
+    private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
+    private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
+
+    private ManualTweenRunner? _runner;
+    private SpriteBatch _spriteBatch;
+
+    private AudioSource soundFX;
+
+    private bool spacePressed;
+    public Texture2D Texture;
+    private SpriteFont hudFont;
+    private int MoveTweenCount { get; set; }
+    private int DeletingCount { get; set; }
+    private int TotalCount { get; set; }
+
+    public Game1()
     {
-        private readonly GraphicsDeviceManager _graphics;
+        _graphics = new(this);
+        Content.RootDirectory = "Content";
+        IsMouseVisible = true;
+    }
 
-        private readonly Random Rand = new();
-        private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
-        private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
 
-        private ManualTweenRunner? _runner;
-        private SpriteBatch _spriteBatch;
+    protected override void LoadContent()
+    {
+        _spriteBatch = new(GraphicsDevice);
+        soundFX = new();
+        Texture = new(_graphics.GraphicsDevice, 1, 1);
+        hudFont = Content.Load<SpriteFont>("Fonts/Hud");
+        Texture.SetData([Color.White]);
+    }
 
-        private AudioSource soundFX;
+    static Color HsvToRgb(double h, double s, double v)
+    {
+        h = h % 360; // Ensure hue is within 0-360
+        if (h < 0) h += 360;
 
-        private bool spacePressed;
-        public Texture2D Texture;
-        private SpriteFont hudFont;
-        private int MoveTweenCount { get; set; }
-        private int DeletingCount { get; set; }
-        private int TotalCount { get; set; }
+        double c = v * s; // Chroma
+        double x = c * (1 - Math.Abs((h / 60) % 2 - 1));
+        double m = v - c;
 
-        public Game1()
+        double rPrime = 0, gPrime = 0, bPrime = 0;
+
+        if (h < 60)
         {
-            _graphics = new(this);
-            Content.RootDirectory = "Content";
-            IsMouseVisible = true;
+            rPrime = c;
+            gPrime = x;
+        }
+        else if (h < 120)
+        {
+            rPrime = x;
+            gPrime = c;
+        }
+        else if (h < 180)
+        {
+            gPrime = c;
+            bPrime = x;
+        }
+        else if (h < 240)
+        {
+            gPrime = x;
+            bPrime = c;
+        }
+        else if (h < 300)
+        {
+            rPrime = x;
+            bPrime = c;
+        }
+        else
+        {
+            rPrime = c;
+            bPrime = x;
         }
 
+        var r = (int)((rPrime + m) * 255);
+        var g = (int)((gPrime + m) * 255);
+        var b = (int)((bPrime + m) * 255);
+        return new(r, g, b);
+    }
 
-        protected override void LoadContent()
+    protected override void Update(GameTime gameTime)
+    {
+        if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
+            Keyboard.GetState().IsKeyDown(Keys.Escape))
+            Exit();
+
+        if (_runner == null)
         {
-            _spriteBatch = new(GraphicsDevice);
-            soundFX = new();
-            Texture = new(_graphics.GraphicsDevice, 1, 1);
-            hudFont = Content.Load<SpriteFont>("Fonts/Hud");
-            Texture.SetData([Color.White]);
+            _runner = new(gameTime.TotalGameTime.TotalSeconds);
+            ITweenRunner.Default = _runner;
+        }
+        else
+        {
+            _runner.Run(gameTime.TotalGameTime.TotalSeconds);
         }
 
-        static Color HsvToRgb(double h, double s, double v)
+        var bounds = Window.ClientBounds;
+        var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
+        if (Keyboard.GetState().IsKeyDown(Keys.Space))
         {
-            h = h % 360; // Ensure hue is within 0-360
-            if (h < 0) h += 360;
-
-            double c = v * s; // Chroma
-            double x = c * (1 - Math.Abs((h / 60) % 2 - 1));
-            double m = v - c;
-
-            double rPrime = 0, gPrime = 0, bPrime = 0;
-
-            if (h < 60)
+            if (!spacePressed)
             {
-                rPrime = c;
-                gPrime = x;
-            }
-            else if (h < 120)
-            {
-                rPrime = x;
-                gPrime = c;
-            }
-            else if (h < 180)
-            {
-                gPrime = c;
-                bPrime = x;
-            }
-            else if (h < 240)
-            {
-                gPrime = x;
-                bPrime = c;
-            }
-            else if (h < 300)
-            {
-                rPrime = x;
-                bPrime = c;
-            }
-            else
-            {
-                rPrime = c;
-                bPrime = x;
-            }
-
-            var r = (int)((rPrime + m) * 255);
-            var g = (int)((gPrime + m) * 255);
-            var b = (int)((bPrime + m) * 255);
-            return new Color(r, g, b);
-        }
-
-        protected override void Update(GameTime gameTime)
-        {
-            if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
-                Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
-
-            if (_runner == null)
-            {
-                _runner = new(gameTime.TotalGameTime.TotalSeconds);
-                ITweenRunner.Default = _runner;
-            }
-            else
-            {
-                _runner.Run(gameTime.TotalGameTime.TotalSeconds);
-            }
-
-            var bounds = Window.ClientBounds;
-            var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
-            if (Keyboard.GetState().IsKeyDown(Keys.Space))
-            {
-                if (!spacePressed)
+                var newObj = new SimpleSpriteObject(Texture)
                 {
-                    var newObj = new SimpleSpriteObject(Texture)
-                    {
-                        Position = center + new Vector2(bounds.Width / 2f, bounds.Height / 2f) *
-                            new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
-                        Size = 10 + 20 * Rand.NextSingle(),
-                        Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
-                    };
-                    TotalCount++;
-                    MoveTweenCount++;
-                    spriteObjects.Add(newObj);
+                    Position = center + new Vector2(bounds.Width / 2f, bounds.Height / 2f) *
+                        new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
+                    Size = 10 + 20 * Rand.NextSingle(),
+                    Color = HsvToRgb(360 * Rand.NextDouble(), 1, 1)
+                };
+                TotalCount++;
+                MoveTweenCount++;
+                spriteObjects.Add(newObj);
 
-                    TweenTask.Create(newObj.Position,
-                            newObj.Position + 200 * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
-                            1 + Rand.NextSingle()).WithCancellationToken(newObj.CancellationToken)
-                        .WithEase(Ease.InBounce)
-                        .WithOnEnd(newObj, (o, result) =>
+                newObj.TweenPositionTo(200 * new Vector2(Rand.NextSingle() - 0.5f, Rand.NextSingle() - 0.5f),
+                        1 + Rand.NextSingle())
+                    .WithRelative()
+                    .WithEase(Ease.InBounce)
+                    .WithCancellationToken(newObj.CancellationToken)
+                    .WithOnEnd(this, static (o, result) =>
+                    {
+                        o.MoveTweenCount--;
+                        switch (result.ResultType)
                         {
-                            MoveTweenCount--;
-                            switch (result.ResultType)
+                            case TweenResultType.Complete:
                             {
-                                case TweenResultType.Complete:
-                                {
-                                    soundFX.PlayWave(440 * MathF.Pow(2, Rand.NextSingle() - 0.5f), 50, WaveType.Square,
-                                        0.3f);
-                                }
-                                    break;
-                                case TweenResultType.Cancel:
-                                {
-                                    soundFX.PlayWave(0, 100, WaveType.Noise,
-                                        0.1f);
-                                }
-                                    break;
+                                o.soundFX.PlayWave(440 * MathF.Pow(2, o.Rand.NextSingle() - 0.5f), 50, WaveType.Square,
+                                    0.3f);
                             }
-                        }).Bind(newObj, (o, position) => o.Position = position);
+                                break;
+                            case TweenResultType.Cancel:
+                            {
+                                o.soundFX.PlayWave(0, 100, WaveType.Noise,
+                                    0.1f);
+                            }
+                                break;
+                        }
+                    }).Schedule();
 
-                    if (spriteObjects.Count > 10)
-                    {
-                        var firstObj = spriteObjects.Shuffle().FirstOrDefault(x => !spriteObjectsToDelete.Contains(x));
+                if (spriteObjects.Count > 10)
+                {
+                    var firstObj = spriteObjects.Shuffle().FirstOrDefault(x => !spriteObjectsToDelete.Contains(x));
 
-                        if (firstObj != null) Delete(firstObj);
-                    }
+                    if (firstObj != null) Delete(firstObj);
                 }
-
-                spacePressed = true;
-            }
-            else
-            {
-                spacePressed = false;
             }
 
-            base.Update(gameTime);
+            spacePressed = true;
+        }
+        else
+        {
+            spacePressed = false;
         }
 
-        private async ValueTask Delete(SimpleSpriteObject obj)
+        base.Update(gameTime);
+    }
+
+
+    private async void Delete(SimpleSpriteObject obj)
+    {
+        try
         {
             spriteObjectsToDelete.Add(obj);
             DeletingCount++;
             if (Rand.NextDouble() < 0.5)
             {
-                await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutCirc)
+                obj.TweenRotationTo(MathF.PI * 4, 2).WithEase(Ease.InOutCubic).Schedule().Forget();
+                await obj.TweenSizeTo(0, 2).WithEase(Ease.Linear)
                     .WithOnEnd(this, (game, result) =>
                     {
                         if (result.ResultType == TweenResultType.Complete)
@@ -188,104 +193,167 @@ namespace MonoGameSample
                         {
                             Console.WriteLine("Failed to delete");
                         }
-                    }).Bind(obj, (o, size) => o.Size = size);
+                    }).Schedule();
             }
             else
             {
-                await TweenTask.Create(obj.Size, 0, 0.5).WithEase(Ease.OutElastic)
-                    .Bind(obj, (o, size) => o.Size = size);
+                obj.TweenRotationTo(-MathF.PI * 4, 1.5).WithEase(Ease.Linear).Schedule().Forget();
+                await TweenTask.Create(obj.Size, 0, 2)
+                    .Bind(obj, (o, size) => o.Size = size).WithEase(Ease.Linear)
+                    .Schedule();
                 DeletingCount--;
             }
 
             obj.Dispose();
             spriteObjects.Remove(obj);
         }
-
-        protected override void Draw(GameTime gameTime)
+        catch (Exception e)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
-            _spriteBatch.Begin();
-            foreach (var spriteObject in spriteObjects) spriteObject.Draw(_spriteBatch);
-            _spriteBatch.DrawString(hudFont,
-                $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", default,
-                Color.White);
-
-            _spriteBatch.End();
-            base.Draw(gameTime);
+            Console.WriteLine(e);
         }
     }
 
-    public class SimpleSpriteObject(Texture2D texture) : IDisposable
+    protected override void Draw(GameTime gameTime)
     {
-        private readonly CancellationTokenSource cts = new();
-        public Texture2D Texture { get; } = texture;
+        GraphicsDevice.Clear(Color.CornflowerBlue);
+        _spriteBatch.Begin();
+        foreach (var spriteObject in spriteObjects) spriteObject.Draw(_spriteBatch);
+        _spriteBatch.DrawString(hudFont,
+            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", default,
+            Color.White);
 
-        public Vector2 Position
+        _spriteBatch.End();
+        base.Draw(gameTime);
+    }
+}
+
+public static class TweenExtensions
+{
+    extension(SimpleSpriteObject obj)
+    {
+        public TweenBuilder<Vector2, Vector2TweenAdapter> TweenPositionTo(Vector2 position,
+            double duration)
         {
-            get
-            {
-                if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
-
-                return field;
-            }
-            set
-            {
-                if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
-
-                field = value;
-            }
+            return TweenBuilder
+                .CreateToEntry<Vector2, Vector2TweenAdapter>(new(position), duration)
+                .Bind(obj, static (obj) => obj.Position,
+                    static (obj, v) => obj.Position = v);
         }
 
-        public float Size { get; set; } = 1;
-        public Color Color { get; set; } = Color.White;
-
-        public CancellationToken CancellationToken => cts.Token;
-
-        public void Dispose()
+        public TweenBuilder<Vector2, Vector2TweenAdapter> TweenPosition(Vector2 from,
+            Vector2 to, double duration)
         {
-            try
-            {
-                cts.Cancel();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e + "\n" + new StackTrace());
-            }
-
-            cts.Dispose();
+            return TweenBuilder.CreateEntry<Vector2, Vector2TweenAdapter>(new(from, to), duration)
+                .Bind(obj, static (obj, v) => obj.Position = v);
         }
 
-        public void Draw(SpriteBatch sb)
+        public TweenBuilder<float, FloatTweenAdapter> TweenSizeTo(float to, double duration)
         {
-            if (cts.IsCancellationRequested) return;
+            return TweenBuilder
+                .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
+                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v);
+        }
 
-            sb.Draw(Texture, Position - new Vector2(Size / 2), null,
-                Color,
-                0, Vector2.Zero, Size,
-                SpriteEffects.None, 0.00001f);
+        public TweenBuilder<float, FloatTweenAdapter> TweenRotationTo(float to, double duration)
+        {
+            return TweenBuilder
+                .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
+                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v);
+        }
+    }
+}
+
+public class SimpleSpriteObject(Texture2D texture) : IDisposable
+{
+    private readonly CancellationTokenSource cts = new();
+    public Texture2D Texture { get; } = texture;
+
+    public Vector2 Position
+    {
+        get
+        {
+            if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
+
+            return field;
+        }
+        set
+        {
+            if (cts.IsCancellationRequested) Console.WriteLine("This Object is Disposed");
+
+            field = value;
         }
     }
 
-    public static class Vector2Tween
+    public float Size { get; set; } = 1;
+    public float Rotation { get; set; } = 0;
+    public Color Color { get; set; } = Color.White;
+
+    public CancellationToken CancellationToken => cts.Token;
+
+    public void Dispose()
     {
-        extension(TweenTask)
+        try
         {
-            public static TweenBuilder<Vector2, Vector2TweenAdapter> Create(Vector2 start, Vector2 end, double duration)
-            {
-                return TweenBuilder<Vector2, Vector2TweenAdapter>.Create(new(start, end), duration);
-            }
+            cts.Cancel();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e + "\n" + new StackTrace());
+        }
+
+        cts.Dispose();
+    }
+
+    public void Draw(SpriteBatch sb)
+    {
+        if (cts.IsCancellationRequested) return;
+        var rot = Rotation;
+        rot %= MathF.PI * 2;
+        if (rot < 0)
+        {
+            rot += MathF.PI * 2;
+        }
+
+        var baseRot = MathF.PI / 4;
+        sb.Draw(Texture,
+            Position - Size / MathF.Sqrt(2) * new Vector2(MathF.Cos(Rotation + baseRot), MathF.Sin(Rotation + baseRot)),
+            null,
+            Color,
+            rot, default, Size,
+            SpriteEffects.None, 0.00001f);
+    }
+}
+
+public static class Vector2Tween
+{
+    extension(TweenTask)
+    {
+        public static TweenBuilderEntry<Vector2, Vector2TweenAdapter> Create(Vector2 start, Vector2 end,
+            double duration)
+        {
+            return new(new(start, end), duration);
+        }
+    }
+}
+
+public record struct Vector2TweenAdapter(Vector2 From, Vector2 To)
+    : ITweenFromAdapter<Vector2>, IRelativeAdapter<Vector2>
+{
+    public Vector2TweenAdapter(Vector2 to) : this(default, to)
+    {
+    }
+
+    public void ApplyFrom(Vector2 from, bool isRelative)
+    {
+        From = from;
+        if (isRelative)
+        {
+            To += from;
         }
     }
 
-    public readonly record struct Vector2TweenAdapter(Vector2 From, Vector2 To) : ITweenAdapter<Vector2>
+    public Vector2 Evaluate(double progress)
     {
-        public Vector2 Evaluate(double progress)
-        {
-            return Vector2.Lerp(From, To, (float)progress);
-        }
-
-        public void Dispose()
-        {
-        }
+        return Vector2.Lerp(From, To, (float)progress);
     }
 }

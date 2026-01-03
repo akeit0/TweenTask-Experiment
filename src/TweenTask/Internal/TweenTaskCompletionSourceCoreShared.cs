@@ -23,16 +23,15 @@ SOFTWARE.
 
 using System;
 
-namespace TweenTasks.Internal
-{
-    internal static class
-        TweenTaskCompletionSourceCoreShared // separated out of generic to avoid unnecessary duplication
-    {
-        internal static readonly Action<object?> s_sentinel = CompletionSentinel;
+namespace TweenTasks.Internal;
 
-        private static void CompletionSentinel(object? _) // named method to aid debugging
-        {
-            throw new InvalidOperationException("The sentinel delegate should never be invoked.");
-        }
+internal static class
+    TweenTaskCompletionSourceCoreShared // separated out of generic to avoid unnecessary duplication
+{
+    internal static readonly Action<object?> s_sentinel = CompletionSentinel;
+
+    private static void CompletionSentinel(object? _) // named method to aid debugging
+    {
+        throw new InvalidOperationException("The sentinel delegate should never be invoked.");
     }
 }

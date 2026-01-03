@@ -1,8 +1,7 @@
-namespace TweenTasks
+namespace TweenTasks;
+
+public interface ITweenRunnerWorkItem
 {
-    public interface ITweenRunnerWorkItem
-    {
-        // true, continue
-        bool MoveNext(double time);
-    }
+    // true, continue
+    bool MoveNext(double time);
 }

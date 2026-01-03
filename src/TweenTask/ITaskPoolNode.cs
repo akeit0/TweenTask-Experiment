@@ -1,7 +1,6 @@
-namespace TweenTasks
+namespace TweenTasks;
+
+public interface ITaskPoolNode<T>
 {
-    public interface ITaskPoolNode<T>
-    {
-        ref T? NextNode { get; }
-    }
+    ref T? NextNode { get; }
 }
