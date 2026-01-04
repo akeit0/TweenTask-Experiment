@@ -113,10 +113,6 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             else
             {
                 easedValue = EaseUtility.Evaluate(loopProgress, Ease);
-                if (LoopType == LoopType.Incremental)
-                {
-                    easedValue += currentLoop * EaseUtility.Evaluate(1, Ease);
-                }
             }
         }
         else
@@ -124,9 +120,11 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
         }
         
+        position = easedValue * Duration;
+        
         foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
         {
-            if (PlaybackSpeed > 0 && sequenceItem.Position > easedValue)
+            if (PlaybackSpeed > 0 && sequenceItem.Position > position)
             {
                 break;
             }
@@ -141,7 +139,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             try
             {
 #if DEBUG
-                ((TweenPromise)((object)sequenceItem.Promise)).SetTime(easedValue - sequenceItem.Position);
+                ((TweenPromise)((object)sequenceItem.Promise)).SetTime(position - sequenceItem.Position);
 
 #else
                 Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(easedValue - sequenceItem.Position);

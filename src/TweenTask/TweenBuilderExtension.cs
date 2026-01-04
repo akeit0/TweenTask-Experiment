@@ -75,6 +75,15 @@ public static class TweenBuilderExtension
             builder.buffer.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
             return builder;
         }
+        
+        public TweenSequenceBuilder WithLoop(int loopCount, LoopType loopType = LoopType.Restart)
+        {
+            builder.Validate();
+            builder.buffer.LoopCount = loopCount;
+            builder.buffer.LoopType = loopType;
+            return builder;
+        }
+        
     }
 
     extension<TValue, TOption, TAdapter>(TweenBuilder<TValue, TAdapter> builder)
