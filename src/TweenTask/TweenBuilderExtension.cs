@@ -25,6 +25,14 @@ public static class TweenBuilderExtension
             return builder;
         }
 
+        public TweenBuilder<TValue, TAdapter> WithLoop(int loopCount, LoopType loopType = LoopType.Restart)
+        {
+            builder.Validate();
+            builder.Buffer.LoopCount = loopCount;
+            builder.Buffer.LoopType = loopType;
+            return builder;
+        }
+
         public TweenBuilder<TValue, TAdapter> WithOnEnd<TState>(TState state,
             Action<TState, TweenResult> callback) where TState : class
         {
@@ -57,7 +65,7 @@ public static class TweenBuilderExtension
         }
     }
 
-    extension(TweenSequenceBuilder builder) 
+    extension(TweenSequenceBuilder builder)
     {
         public TweenSequenceBuilder WithOnEnd<TState>(TState state,
             Action<TState, TweenResult> callback) where TState : class

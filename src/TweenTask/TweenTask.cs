@@ -17,25 +17,25 @@ public readonly struct TweenTask : IEquatable<TweenTask>
         return new(new(end), duration);
     }
 
-    private readonly TweenPromise promise;
+    internal readonly TweenPromise Promise;
     private readonly short token;
 
     internal TweenTask(TweenPromise promise, short token)
     {
-        this.promise = promise;
+        this.Promise = promise;
         this.token = token;
     }
 
     public void SetPlaybackSpeed(double speed)
     {
         Validate();
-        promise.PlaybackSpeed = speed;
+        Promise.PlaybackSpeed = speed;
     }
     
     public bool IsPreserved
     {
-        get => promise.IsPreserved;
-        set => promise.IsPreserved = value;
+        get => Promise.IsPreserved;
+        set => Promise.IsPreserved = value;
     }
 
     public double Time
@@ -43,30 +43,30 @@ public readonly struct TweenTask : IEquatable<TweenTask>
         get
         {
             Validate();
-            return promise.Time;
+            return Promise.Time;
         }
         set
         {
             Validate();
-            promise.SetTime(value);
+            Promise.SetTime(value);
         }
     }
 
     public bool TryCancel()
     {
-        if (promise == null) return false;
-        return promise.TryCancel(token);
+        if (Promise == null) return false;
+        return Promise.TryCancel(token);
     }
 
     public bool TryComplete()
     {
-        if (promise == null) return false;
-        return promise.TryComplete(token);
+        if (Promise == null) return false;
+        return Promise.TryComplete(token);
     }
 
     public ValueTask AsValueTask()
     {
-        return new(promise, token);
+        return new(Promise, token);
     }
 
     public void Forget()
@@ -75,7 +75,7 @@ public readonly struct TweenTask : IEquatable<TweenTask>
 
     void Validate()
     {
-        if (promise.Version != token)
+        if (Promise.Version != token)
         {
             throw new InvalidOperationException();
         }
@@ -83,12 +83,12 @@ public readonly struct TweenTask : IEquatable<TweenTask>
 
     public ValueTaskAwaiter GetAwaiter()
     {
-        return new ValueTask(promise, token).GetAwaiter();
+        return new ValueTask(Promise, token).GetAwaiter();
     }
 
     public bool Equals(TweenTask other)
     {
-        return promise == other.promise && token == other.token;
+        return Promise == other.Promise && token == other.token;
     }
 
     public override bool Equals(object? obj)
@@ -98,6 +98,6 @@ public readonly struct TweenTask : IEquatable<TweenTask>
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(promise, token);
+        return HashCode.Combine(Promise, token);
     }
 }

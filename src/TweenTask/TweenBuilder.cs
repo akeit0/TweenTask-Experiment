@@ -2,6 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using TweenTasks.Internal;
+
 namespace TweenTasks;
 
 public static class TweenBuilder
@@ -124,37 +125,18 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
     {
         if (Buffer.Version != Version) throw new InvalidOperationException("Tween builder Version doesn't match");
     }
+
     public void Run()
     {
-        Validate();
-
-        Buffer.ApplyAdapterState();
-        var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
-            Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, Buffer.SetCallback, Buffer.GetSetState,
-            Buffer.OnEndAction, Buffer.OnEndState,
-            Buffer.CancellationToken,
-            out var token);
-
-        Dispose();
-        (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
+        Schedule();
     }
 
     public TweenTask Schedule()
     {
-        Validate();
-
-        Buffer.ApplyAdapterState();
-        var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
-            Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, Buffer.SetCallback, Buffer.GetSetState,
-            Buffer.OnEndAction, Buffer.OnEndState,
-            Buffer.CancellationToken,
-            out var token);
-
-        Dispose();
-        (Buffer.Runner ?? ITweenRunner.Default).Register(promise);
-        return new(
-            promise,
-            token);
+        var runner = Buffer.Runner ?? ITweenRunner.Default;
+        var t = Build();
+        runner.Register((ITweenRunnerWorkItem)t.Promise);
+        return t;
     }
 
     public TweenTask Build()
@@ -162,12 +144,7 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
         Validate();
 
         Buffer.ApplyAdapterState();
-        var promise = TweenPromise<TValue, TAdapter>.Create(Buffer.Delay,
-            Buffer.Duration, Buffer.PlaybackSpeed, Buffer.Ease, Buffer.Adapter, Buffer.SetCallback, Buffer.GetSetState,
-            Buffer.OnEndAction, Buffer.OnEndState,
-            Buffer.CancellationToken,
-            out var token);
-        Dispose();
+        var promise = Buffer.CreatePromise(out var token);
         return new(
             promise,
             token);

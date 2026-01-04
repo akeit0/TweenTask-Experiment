@@ -116,13 +116,15 @@ public class Game1 : Game
 
 
         seqTask = TweenSequence.Create()
-            // .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
-            // .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
-            // .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
-            // .Join(seqObject.TweenRotationTo(0, 0.5))
-            // .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
-            // .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
-            // 
+            .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5)
+                .WithRelative().WithLoop(2,LoopType.Incremental).WithEase(Ease.OutBounce))
+            .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5)
+                .WithRelative().WithLoop(3,LoopType.Yoyo).WithEase(Ease.InCirc))
+            .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5)
+                .WithRelative().WithLoop(3,LoopType.Flip).WithEase(Ease.InCirc))
+            .Join(seqObject.TweenRotationTo(0, 0.5))
+            .Append(seqObject.TweenPositionTo(center, 0.5))
+            .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
             .Append(TweenTask
                 .CreatePath(pathPoints, 1)
                 .Bind(seqObject, ((o, v) => o.Position = v)))

@@ -4,7 +4,8 @@ using TweenTasks.Internal;
 
 namespace TweenTasks;
 
-internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>,ITweenBuilderBuffer
+internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>,
+    ITweenBuilderBuffer
     where TAdapter : ITweenAdapter<TValue>
 {
     public TAdapter Adapter;
@@ -14,6 +15,8 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public CancellationToken CancellationToken;
     public double Delay;
     public double Duration;
+    public int LoopCount = 1;
+    public LoopType LoopType;
     public Ease Ease;
     public bool IsRelative;
     public Action<object?, TweenResult>? OnEndAction;
@@ -25,8 +28,8 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     private TweenBuilderBuffer<TValue, TAdapter>? next;
     public ref TweenBuilderBuffer<TValue, TAdapter>? NextNode => ref next;
     public Func<object?, TValue>? GetCallback;
-    
-    public double TotalDuration => Delay + Duration;
+
+    public double TotalDuration => Delay + Duration * LoopCount;
 
     public static TweenBuilderBuffer<TValue, TAdapter> Rent()
     {
@@ -51,10 +54,10 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     {
         ApplyAdapterState();
         var promise = TweenPromise<TValue, TAdapter>.Create(Delay,
-            Duration, PlaybackSpeed, Ease, Adapter, SetCallback, GetSetState,
+            Duration, PlaybackSpeed, LoopCount,LoopType, Ease, Adapter, SetCallback, GetSetState,
             OnEndAction, OnEndState,
             CancellationToken,
-            out  token);
+            out token);
         TryReturn();
         return promise;
     }
@@ -64,7 +67,10 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         PlaybackSpeed = 1;
         Runner = null!;
         Adapter = default;
+        LoopCount = 1;
+        LoopType= default;
         Ease = default;
+        Delay = 0;
         OnEndState = null;
         SetCallback = null;
         GetSetState = null;

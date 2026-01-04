@@ -12,6 +12,8 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     protected TweenTaskCompletionSourceCore Core;
     protected double Delay;
     protected double Duration;
+    protected int LoopCount;
+    protected LoopType LoopType;
     protected Ease Ease;
     public double PlaybackSpeed;
     protected object? State;
@@ -98,6 +100,19 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     public abstract bool TryReturn();
 }
 
+internal static class TweenMath
+{
+    // public static double CalculateProgress(double time,  double duration, int loopCount,
+    //     LoopType loopType,out bool isComplete)
+    // {
+    //     var position = time;
+    //     
+    //     var progress = position / duration;
+    //     progress = Math.Clamp(progress, 0, 1);
+    //     return progress;
+    // }
+}
+
 internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     ITaskPoolNode<TweenPromise<T, TAdapter>>
     where TAdapter : ITweenAdapter<T>
@@ -110,7 +125,8 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     ref TweenPromise<T, TAdapter>? ITaskPoolNode<TweenPromise<T, TAdapter>>.NextNode => ref next;
 
 
-    public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, Ease ease,
+    public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, int loopCount,
+        LoopType loopType, Ease ease,
         TAdapter adapter,
         Action<object?, T>? action, object? state, Action<object?, TweenResult>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
@@ -119,6 +135,8 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         Debug.Assert(!promise.Core.IsSetContinuationWithAwait);
         promise.Delay = delay;
         promise.Duration = duration;
+        promise.LoopCount = loopCount;
+        promise.LoopType = loopType;
         promise.PlaybackSpeed = playBackSpeed;
         promise.Ease = ease;
         promise.action = action;
@@ -157,17 +175,48 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             }
         }
 
-        if (progress > 1)
+        var totalProgress = progress / LoopCount;
+
+        if (totalProgress > 1)
         {
-            if (lastTime - Delay > Duration)
+            if ((lastTime - Delay) / LoopCount > Duration)
             {
                 return;
             }
         }
 
-        progress = Math.Clamp(progress, 0, 1);
-        action?.Invoke(State, adapter.Evaluate(EaseUtility.Evaluate(progress, Ease)));
-        if (progress < 1) return;
+        double easedValue;
+        if (LoopCount > 1 && progress >= 1)
+        {
+            var currentLoop = (int)(progress);
+            var loopProgress = progress - currentLoop;
+            if (currentLoop % 2 == 1 && (LoopType == LoopType.Yoyo || LoopType == LoopType.Flip))
+            {
+                if (LoopType == LoopType.Flip)
+                {
+                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
+                }
+                else
+                {
+                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
+                }
+            }
+            else
+            {
+                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
+                if (LoopType == LoopType.Incremental)
+                {
+                    easedValue += currentLoop * EaseUtility.Evaluate(1, Ease);
+                }
+            }
+        }
+        else
+        {
+            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
+        }
+
+        action?.Invoke(State, adapter.Evaluate(easedValue));
+        if (totalProgress < 1) return;
 
         if (Core.IsSetContinuationWithAwait)
         {
@@ -187,7 +236,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
 
         Time += PlaybackSpeed * deltaTime;
         var position = Time - Delay;
-        var progress = Math.Min(1, position / Duration);
+        var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
             if (Core.IsSetContinuationWithAwait)
@@ -199,9 +248,35 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         }
 
         if (Delay > Time) return true;
+        var totalProgress = progress / LoopCount;
+        double easedValue;
+        if (LoopCount > 1 && progress >= 1)
+        {
+            var currentLoop = (int)(progress);
+            var loopProgress = progress - currentLoop;
+            if (currentLoop % 2 == 1 && LoopType is LoopType.Yoyo or LoopType.Flip)
+            {
+                if (LoopType == LoopType.Flip)
+                {
+                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
+                }
+                else
+                {
+                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
+                }
+            }
+            else
+            {
+                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
+            }
+        }
+        else
+        {
+            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
+        }
 
-        action?.Invoke(State, adapter.Evaluate(EaseUtility.Evaluate(progress, Ease)));
-        if (progress < 1) return true;
+        action?.Invoke(State, adapter.Evaluate(easedValue));
+        if (totalProgress < 1) return true;
 
         if (Core.IsSetContinuationWithAwait)
         {
