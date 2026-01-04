@@ -34,6 +34,8 @@ public class Game1 : Game
 
     SimpleSpriteObject? seqObject;
     private TweenTask seqTask;
+    private Vector2[] pathPoints;
+    Spline2D spline;
 
     public Game1()
     {
@@ -83,9 +85,22 @@ public class Game1 : Game
             ITweenRunner.Default = runner;
         }
 
+        var bounds = Window.ClientBounds;
+        var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
+        pathPoints =
+        [
+            center,
+            center + new Vector2(100, 0),
+            center + new Vector2(150, 100),
+            center + new Vector2(-100, 100),
+            center + new Vector2(-50, 00),
+            center
+        ];
+        spline = new Spline2D(pathPoints);
         CreateSeq();
         base.BeginRun();
     }
+
 
     void CreateSeq()
     {
@@ -95,18 +110,28 @@ public class Game1 : Game
         {
             Position = center,
             Size = 50,
-            Color = HsvToRgb(360 * rand.NextDouble(), 1, 1)
+            Color = Color.Yellow
         };
         TotalCount++;
 
+
         seqTask = TweenSequence.Create()
-            .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
-            .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
-            .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
-            .Join(seqObject.TweenRotationTo(0, 0.5))
-            .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
-            .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
-            .Insert(0, seqObject.TweenRotationTo(MathF.PI, 0.5))
+            // .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
+            // .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
+            // .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
+            // .Join(seqObject.TweenRotationTo(0, 0.5))
+            // .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
+            // .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
+            // 
+            .Append(TweenTask
+                .CreatePath(pathPoints, 1)
+                .Bind(seqObject, ((o, v) => o.Position = v)))
+            .Append(seqObject.TweenRotationTo(MathF.PI, 0.5).WithRelative())
+            .Append(TweenTask
+                .CreatePath(spline, 1)
+                .Bind(seqObject, ((o, v) => o.Position = v)))
+            .Join(seqObject.TweenRotationTo(-MathF.PI, 0.5).WithRelative())
+            .Insert(0, seqObject.TweenRotationTo(-MathF.PI, 0.5).WithRelative())
             .Schedule(seqObject.CancellationToken);
         seqTask.IsPreserved = true;
     }
@@ -497,6 +522,18 @@ public static class Vector2Tween
         {
             return new(new(start, end), duration);
         }
+
+        public static TweenBuilderEntry<Vector2, Vector2PathTweenAdapter> CreatePath(Vector2[] path,
+            double duration)
+        {
+            return new(new(path), duration);
+        }
+
+        public static TweenBuilderEntry<Vector2, Vector2PathTweenAdapter> CreatePath(Spline2D spline2D,
+            double duration)
+        {
+            return new(new(spline2D), duration);
+        }
     }
 }
 
@@ -519,5 +556,58 @@ public record struct Vector2TweenAdapter(Vector2 From, Vector2 To)
     public Vector2 Evaluate(double progress)
     {
         return Vector2.Lerp(From, To, (float)progress);
+    }
+}
+
+public struct Vector2PathTweenAdapter : ITweenAdapter<Vector2>
+{
+    public Vector2PathTweenAdapter(Spline2D spline2D)
+    {
+        this.Spline2D = spline2D;
+        this.Path = null;
+        this.PathType = PathType.CustomSpline;
+    }
+
+    public Vector2PathTweenAdapter(Vector2[] path)
+    {
+        this.Path = path;
+        this.Spline2D = null;
+        this.PathType = PathType.Linear;
+    }
+
+    public Vector2 Evaluate(double progress)
+    {
+        return PathType switch
+        {
+            PathType.Linear => Interpolation.Linear(Path!, (float)progress),
+            PathType.CustomSpline => Spline2D!.GetPoint(progress),
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    public Spline2D? Spline2D { get; set; }
+    public Vector2[]? Path { get; set; }
+    public PathType PathType { get; set; }
+}
+
+public enum PathType
+{
+    Linear,
+    CustomSpline
+}
+
+public static class Interpolation
+{
+    public static Vector2 Linear(ReadOnlySpan<Vector2> points, float t)
+    {
+        if (points.Length < 2) throw new ArgumentException("1次には2点以上必要です");
+        int segCount = points.Length - 1;
+        float scaledT = t * segCount;
+        int seg = Math.Clamp((int)scaledT, 0, segCount - 1);
+        float localT = scaledT - seg;
+        var p0 = points[seg];
+        var p1 = points[seg + 1];
+        float u = 1 - localT;
+        return u * p0 + localT * p1;
     }
 }
