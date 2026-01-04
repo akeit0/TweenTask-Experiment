@@ -31,6 +31,12 @@ public readonly struct TweenTask : IEquatable<TweenTask>
         Validate();
         promise.PlaybackSpeed = speed;
     }
+    
+    public bool IsPreserved
+    {
+        get => promise.IsPreserved;
+        set => promise.IsPreserved = value;
+    }
 
     public double Time
     {

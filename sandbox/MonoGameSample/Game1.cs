@@ -32,6 +32,9 @@ public class Game1 : Game
     private int DeletingCount { get; set; }
     private int TotalCount { get; set; }
 
+    SimpleSpriteObject seqObject;
+    private TweenTask seqTask;
+
     public Game1()
     {
         graphics = new(this);
@@ -47,6 +50,36 @@ public class Game1 : Game
         Texture = new(graphics.GraphicsDevice, 1, 1);
         hudFont = Content.Load<SpriteFont>("Fonts/Hud");
         Texture.SetData([Color.White]);
+    }
+
+    protected override void BeginRun()
+    {
+        if (runner == null)
+        {
+            runner = new(0);
+            ITweenRunner.Default = runner;
+        }
+        var bounds = Window.ClientBounds;
+        var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
+        seqObject = new SimpleSpriteObject(Texture)
+        {
+            Position = center,
+            Size = 50,
+            Color = HsvToRgb(360 * rand.NextDouble(), 1, 1)
+        };
+        TotalCount++;
+
+        seqTask = TweenSequence.Create()
+            .Append(seqObject.TweenRotationTo(MathF.PI * 2, 0.5))
+            .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
+            .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
+            .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
+           .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
+            .Append(seqObject.TweenRotationTo(-MathF.PI * 2, 0.5))
+            .Schedule();
+        
+        seqTask.IsPreserved = true;
+        base.BeginRun();
     }
 
     static Color HsvToRgb(double h, double s, double v)
@@ -103,15 +136,7 @@ public class Game1 : Game
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
 
-        if (runner == null)
-        {
-            runner = new(gameTime.TotalGameTime.TotalSeconds);
-            ITweenRunner.Default = runner;
-        }
-        else
-        {
-            runner.Run(gameTime.TotalGameTime.TotalSeconds);
-        }
+        runner.Run(gameTime.TotalGameTime.TotalSeconds);
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
@@ -226,6 +251,14 @@ public class Game1 : Game
             jKeyPressed = false;
         }
 
+        if (Keyboard.GetState().IsKeyDown(Keys.Right))
+        {
+            seqTask.SetPlaybackSpeed(1);
+        }else if (Keyboard.GetState().IsKeyDown(Keys.Left))
+        {
+            seqTask.SetPlaybackSpeed(-1);
+        }
+
         base.Update(gameTime);
     }
 
@@ -274,9 +307,13 @@ public class Game1 : Game
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
         spriteBatch.Begin();
+        seqObject.Draw(spriteBatch);
         foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
         spriteBatch.DrawString(hudFont,
-            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", default,
+            $"SeqTime: {seqTask.Time:f1}", new Vector2(0,0),
+            Color.White);
+        spriteBatch.DrawString(hudFont,
+            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", new Vector2(0,100),
             Color.White);
 
         spriteBatch.End();
@@ -308,14 +345,16 @@ public static class TweenExtensions
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v).WithCancellationToken(obj.CancellationToken);
+                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v)
+                .WithCancellationToken(obj.CancellationToken);
         }
 
         public TweenBuilder<float, FloatTweenAdapter> TweenRotationTo(float to, double duration)
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v).WithCancellationToken(obj.CancellationToken);
+                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v)
+                .WithCancellationToken(obj.CancellationToken);
         }
     }
 }
@@ -327,7 +366,7 @@ public class SimpleSpriteObject : IDisposable
     public SimpleSpriteObject(Texture2D texture)
     {
         Texture = texture;
-        tokenCache =cts.Token;
+        tokenCache = cts.Token;
     }
 
     public Texture2D Texture { get; }
@@ -340,6 +379,7 @@ public class SimpleSpriteObject : IDisposable
             {
                 throw new OperationCanceledException(tokenCache);
             }
+
             return field;
         }
         set
@@ -348,6 +388,7 @@ public class SimpleSpriteObject : IDisposable
             {
                 throw new OperationCanceledException(tokenCache);
             }
+
             field = value;
         }
     }

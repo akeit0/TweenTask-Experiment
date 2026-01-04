@@ -160,6 +160,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
 
     public override bool TryReturn()
     {
+        if (IsPreserved) return false;
         Core.Reset();
         foreach (ref var sequenceItem in SequenceItems.AsSpan())
         {
@@ -178,6 +179,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
     {
         if (!Core.IsActive) return false;
         Time += PlaybackSpeed * deltaTime;
+        Time = Math.Clamp(Time,0, Delay + Duration);
         var position = Time - Delay;
         var progress = Math.Min(1, position / Duration);
         if (CancellationToken.IsCancellationRequested)
@@ -199,7 +201,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
                 break;
             }
 
-            if (sequenceItem.Position > LatestTime && sequenceItem.Position < position)
+            if (sequenceItem.Position > LatestTime)
             {
                 var t = (sequenceItem.Promise).CreatePromise(out _);
                 t.IsPreserved = true;
@@ -208,14 +210,16 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
 
             try
             {
+                #if DEBUG
+                ((TweenPromise)((object)sequenceItem.Promise)).SetTime(position - sequenceItem.Position);
+
+                #else
                 Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(position - sequenceItem.Position);
+#endif
             }
             catch (Exception e)
             {
-                if (e is OperationCanceledException operationCanceledException)
-                {
-                    Console.WriteLine(CancellationToken==operationCanceledException.CancellationToken);
-                }
+                Console.WriteLine(e);
                 if (Core.IsSetContinuationWithAwait)
                     Core.TrySetCanceled(CancellationToken);
                 else
@@ -226,6 +230,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
         }
 
         LatestTime = Math.Max(LatestTime, position);
+        if (IsPreserved) return true;
         if (progress < 1) return true;
 
         if (Core.IsSetContinuationWithAwait)
