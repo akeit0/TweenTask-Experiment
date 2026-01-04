@@ -76,7 +76,6 @@ public static class TweenBuilderExtension
         {
             builder.Validate();
             builder.Buffer.Adapter.WithOption(option);
-            ;
             return builder;
         }
     }

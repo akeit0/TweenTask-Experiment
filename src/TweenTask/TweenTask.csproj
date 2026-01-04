@@ -5,6 +5,7 @@
         <LangVersion>14</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
+        <RootNamespace>TweenTasks</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

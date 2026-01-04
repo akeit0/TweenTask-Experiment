@@ -19,8 +19,8 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
 
     public bool IsPreserved
     {
-        get { return Core.IsPreserved; }
-        set { Core.IsPreserved = value; }
+        get => Core.IsPreserved;
+        set => Core.IsPreserved = value;
     }
 
     public virtual void SetTime(double time)
