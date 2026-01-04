@@ -73,11 +73,11 @@ public class Game1 : Game
             .Append(seqObject.TweenRotationTo(MathF.PI * 2, 0.5))
             .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
             .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
+            .Insert(1.5,seqObject.TweenRotationTo(MathF.PI, 0.5))
             .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
            .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
             .Append(seqObject.TweenRotationTo(-MathF.PI * 2, 0.5))
             .Schedule();
-        
         seqTask.IsPreserved = true;
         base.BeginRun();
     }
