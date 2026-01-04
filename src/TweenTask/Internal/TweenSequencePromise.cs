@@ -18,7 +18,8 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
     ref TweenSequencePromise? ITaskPoolNode<TweenSequencePromise>.NextNode => ref next;
 
     public static TweenSequencePromise Create(TweenSequenceItem[] items, int count, double delay, double duration,
-        double playBackSpeed, Action<object?, TweenResult>? endCallback, object? endState,
+        double playBackSpeed, int loopCount,
+        LoopType loopType, Ease ease, Action<object?, TweenResult>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
         if (!_pool.TryPop(out var promise))
@@ -30,6 +31,9 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         promise.SequenceItemCount = count;
         promise.Delay = delay;
         promise.Duration = duration;
+        promise.LoopCount = loopCount;
+        promise.LoopType = loopType;
+        promise.Ease = ease;
         promise.PlaybackSpeed = playBackSpeed;
         promise.CancellationToken = cancellationToken;
         promise.Core.Activate();
@@ -78,7 +82,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         Time += PlaybackSpeed * deltaTime;
         Time = Math.Clamp(Time, 0, Delay + Duration);
         var position = Time - Delay;
-        var progress = Math.Min(1, position / Duration);
+        var progress =  position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
             if (Core.IsSetContinuationWithAwait)
@@ -90,10 +94,39 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         }
 
         if (PlaybackSpeed > 0 && Delay > Time) return true;
-
+        double easedValue;
+        if (LoopCount > 1 && progress >= 1)
+        {
+            var currentLoop = (int)(progress);
+            var loopProgress = progress - currentLoop;
+            if (currentLoop % 2 == 1 && (LoopType == LoopType.Yoyo || LoopType == LoopType.Flip))
+            {
+                if (LoopType == LoopType.Flip)
+                {
+                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
+                }
+                else
+                {
+                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
+                }
+            }
+            else
+            {
+                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
+                if (LoopType == LoopType.Incremental)
+                {
+                    easedValue += currentLoop * EaseUtility.Evaluate(1, Ease);
+                }
+            }
+        }
+        else
+        {
+            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
+        }
+        
         foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
         {
-            if (PlaybackSpeed > 0 && sequenceItem.Position > position)
+            if (PlaybackSpeed > 0 && sequenceItem.Position > easedValue)
             {
                 break;
             }
@@ -108,10 +141,10 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             try
             {
 #if DEBUG
-                ((TweenPromise)((object)sequenceItem.Promise)).SetTime(position - sequenceItem.Position);
+                ((TweenPromise)((object)sequenceItem.Promise)).SetTime(easedValue - sequenceItem.Position);
 
 #else
-                Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(position - sequenceItem.Position);
+                Unsafe.As<TweenPromise>(sequenceItem.Promise).SetTime(easedValue - sequenceItem.Position);
 #endif
             }
             catch (Exception e)

@@ -66,6 +66,9 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     internal Action<object?, TweenResult>? OnEndAction;
     internal double LastStart;
     internal double Duration;
+    internal int LoopCount = 1;
+    internal LoopType LoopType;
+    internal Ease Ease;
     internal int Version;
 
     TweenSequenceBuilderBuffer? next;
@@ -107,7 +110,8 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     {
         TweensBuffer ??= [];
         Array.Sort(TweensBuffer, 0, TweenCount);
-        var promise = TweenSequencePromise.Create(TweensBuffer, TweenCount, 0, Duration, 1, OnEndAction,
+        var promise = TweenSequencePromise.Create(TweensBuffer, TweenCount, 0, Duration, 1, LoopCount, LoopType, Ease,
+            OnEndAction,
             EndState,
             cancellationToken, out var token);
         ITweenRunner.Default.Register(promise);
@@ -123,6 +127,9 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
         EndState = null;
         TweenCount = 0;
         Duration = 0;
+        LoopCount = 1;
+        LoopType = LoopType.Restart;
+        Ease = Ease.Linear;
         LastStart = 0;
         Version++;
         pool.TryPush(this);
