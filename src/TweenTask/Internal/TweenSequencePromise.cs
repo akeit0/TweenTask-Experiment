@@ -1,22 +1,33 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace TweenTasks.Internal;
 
-internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
+internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskPoolNode<TweenSequencePromise>
 {
-    public TweenSequenceItem[] SequenceItems = [];
+    public TweenSequenceItem[] SequenceItems = null!;
 
+    public int SequenceItemCount;
     public double LatestTime;
 
-    public static TweenSequencePromise Create(ReadOnlySpan<TweenSequenceItem> items, double delay, double duration,
+    static TaskPool<TweenSequencePromise> _pool;
+
+    private TweenSequencePromise? next;
+    ref TweenSequencePromise? ITaskPoolNode<TweenSequencePromise>.NextNode => ref next;
+
+    public static TweenSequencePromise Create(TweenSequenceItem[] items, int count, double delay, double duration,
         double playBackSpeed, Action<object?, TweenResult>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
-        var promise = new TweenSequencePromise();
+        if (!_pool.TryPop(out var promise))
+        {
+            promise = new TweenSequencePromise();
+        }
 
-        promise.SequenceItems = items.ToArray();
+        promise.SequenceItems = items;
+        promise.SequenceItemCount = count;
         promise.Delay = delay;
         promise.Duration = duration;
         promise.PlaybackSpeed = playBackSpeed;
@@ -44,16 +55,18 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
     {
         if (IsPreserved) return false;
         Core.Reset();
-        foreach (ref var sequenceItem in SequenceItems.AsSpan())
+        foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
         {
             object p = sequenceItem.Promise;
             if (p is TweenPromise tweenPromise)
             {
                 tweenPromise.IsPreserved = false;
+                tweenPromise.SetTime(Duration + 0.001 - sequenceItem.Position);
             }
-
-            ((IReturnable)p).TryReturn();
+            else ((IReturnable)p).TryReturn();
         }
+
+        ArrayPool<TweenSequenceItem>.Shared.Return(SequenceItems, true);
 
         CancellationToken = CancellationToken.None;
         return true;
@@ -78,7 +91,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem
 
         if (PlaybackSpeed > 0 && Delay > Time) return true;
 
-        foreach (ref var sequenceItem in SequenceItems.AsSpan())
+        foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
         {
             if (PlaybackSpeed > 0 && sequenceItem.Position > position)
             {

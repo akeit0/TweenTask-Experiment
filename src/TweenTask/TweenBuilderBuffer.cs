@@ -4,16 +4,6 @@ using TweenTasks.Internal;
 
 namespace TweenTasks;
 
-internal interface IReturnable{
-
-    public bool TryReturn();
-}
-internal interface ITweenBuilderBuffer :IReturnable
-{
-    public TweenPromise CreatePromise(out short token);
-    public double TotalDuration { get; }
-}
-
 internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>,ITweenBuilderBuffer
     where TAdapter : ITweenAdapter<TValue>
 {
@@ -74,6 +64,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         PlaybackSpeed = 1;
         Runner = null!;
         Adapter = default;
+        Ease = default;
         OnEndState = null;
         SetCallback = null;
         GetSetState = null;

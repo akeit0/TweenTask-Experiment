@@ -107,7 +107,7 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     {
         TweensBuffer ??= [];
         Array.Sort(TweensBuffer, 0, TweenCount);
-        var promise = TweenSequencePromise.Create(TweensBuffer.AsSpan(0, TweenCount), 0, Duration, 1, OnEndAction,
+        var promise = TweenSequencePromise.Create(TweensBuffer, TweenCount, 0, Duration, 1, OnEndAction,
             EndState,
             cancellationToken, out var token);
         ITweenRunner.Default.Register(promise);
@@ -118,7 +118,6 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
 
     public bool TryReturn()
     {
-        ArrayPool<TweenSequenceItem>.Shared.Return(TweensBuffer, true);
         TweensBuffer = null;
         OnEndAction = null;
         EndState = null;
