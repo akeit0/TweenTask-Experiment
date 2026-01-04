@@ -62,8 +62,9 @@ public static class TweenBuilderExtension
         public TweenSequenceBuilder WithOnEnd<TState>(TState state,
             Action<TState, TweenResult> callback) where TState : class
         {
-            builder.EndState = state;
-            builder.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
+            builder.Validate();
+            builder.buffer.EndState = state;
+            builder.buffer.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
             return builder;
         }
     }

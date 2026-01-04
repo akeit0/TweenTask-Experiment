@@ -32,7 +32,7 @@ public class Game1 : Game
     private int DeletingCount { get; set; }
     private int TotalCount { get; set; }
 
-    SimpleSpriteObject seqObject;
+    SimpleSpriteObject? seqObject;
     private TweenTask seqTask;
 
     public Game1()
@@ -42,6 +42,29 @@ public class Game1 : Game
         IsMouseVisible = true;
     }
 
+    bool[] lastKeysPressed = new bool[256];
+    bool[] keysPressed = new bool[256];
+    Keys[] pressedKeys = new Keys[256];
+
+    public void UpdateKeyStates()
+    {
+        (keysPressed, lastKeysPressed) = (lastKeysPressed, keysPressed);
+        keysPressed.AsSpan().Clear();
+        pressedKeys.AsSpan().Clear();
+        Keyboard.GetState().GetPressedKeys(pressedKeys);
+        foreach (var key in pressedKeys)
+        {
+            if (key != 0)
+            {
+                keysPressed[(int)key] = true;
+            }
+        }
+    }
+
+    public bool IsKeyPressedSinceLastFrame(Keys key)
+    {
+        return keysPressed[(int)key] && !lastKeysPressed[(int)key];
+    }
 
     protected override void LoadContent()
     {
@@ -59,6 +82,13 @@ public class Game1 : Game
             runner = new(0);
             ITweenRunner.Default = runner;
         }
+
+        CreateSeq();
+        base.BeginRun();
+    }
+
+    void CreateSeq()
+    {
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
         seqObject = new SimpleSpriteObject(Texture)
@@ -70,16 +100,15 @@ public class Game1 : Game
         TotalCount++;
 
         seqTask = TweenSequence.Create()
-            .Append(seqObject.TweenRotationTo(MathF.PI * 2, 0.5))
             .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
             .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5).WithRelative())
-            .Insert(1.5,seqObject.TweenRotationTo(MathF.PI, 0.5))
             .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5).WithRelative())
-           .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
-            .Append(seqObject.TweenRotationTo(-MathF.PI * 2, 0.5))
-            .Schedule();
+            .Join(seqObject.TweenRotationTo(0, 0.5))
+            .Append(seqObject.TweenPositionTo(new Vector2(0, -100), 0.5).WithRelative())
+            .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
+            .Insert(0, seqObject.TweenRotationTo(MathF.PI, 0.5))
+            .Schedule(seqObject.CancellationToken);
         seqTask.IsPreserved = true;
-        base.BeginRun();
     }
 
     static Color HsvToRgb(double h, double s, double v)
@@ -135,8 +164,8 @@ public class Game1 : Game
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
-
-        runner.Run(gameTime.TotalGameTime.TotalSeconds);
+        UpdateKeyStates();
+        runner!.Run(gameTime.TotalGameTime.TotalSeconds);
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
@@ -254,9 +283,27 @@ public class Game1 : Game
         if (Keyboard.GetState().IsKeyDown(Keys.Right))
         {
             seqTask.SetPlaybackSpeed(1);
-        }else if (Keyboard.GetState().IsKeyDown(Keys.Left))
+        }
+        else if (Keyboard.GetState().IsKeyDown(Keys.Left))
         {
             seqTask.SetPlaybackSpeed(-1);
+        }
+
+
+        if (IsKeyPressedSinceLastFrame(Keys.P))
+        {
+            if (seqObject != null)
+            {
+                seqTask.IsPreserved = false;
+                seqTask.TryCancel();
+                seqTask = default;
+                seqObject.Dispose();
+                seqObject = null;
+            }
+            else
+            {
+                CreateSeq();
+            }
         }
 
         base.Update(gameTime);
@@ -307,13 +354,18 @@ public class Game1 : Game
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
         spriteBatch.Begin();
-        seqObject.Draw(spriteBatch);
+        seqObject?.Draw(spriteBatch);
         foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
+        if (seqObject != null)
+        {
+            spriteBatch.DrawString(hudFont,
+                $"SeqTime: {seqTask.Time:f1}", new Vector2(0, 0),
+                Color.White);
+        }
+
         spriteBatch.DrawString(hudFont,
-            $"SeqTime: {seqTask.Time:f1}", new Vector2(0,0),
-            Color.White);
-        spriteBatch.DrawString(hudFont,
-            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}", new Vector2(0,100),
+            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
+            new Vector2(0, 50),
             Color.White);
 
         spriteBatch.End();
@@ -353,7 +405,8 @@ public static class TweenExtensions
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Rotation, static (obj, v) => obj.Rotation = v)
+                .Bind(obj, static (obj) => obj.Rotation,
+                    static (obj, v) => obj.Rotation = v)
                 .WithCancellationToken(obj.CancellationToken);
         }
     }

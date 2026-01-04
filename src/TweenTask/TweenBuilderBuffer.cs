@@ -11,6 +11,7 @@ internal interface IReturnable{
 internal interface ITweenBuilderBuffer :IReturnable
 {
     public TweenPromise CreatePromise(out short token);
+    public double TotalDuration { get; }
 }
 
 internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<TweenBuilderBuffer<TValue, TAdapter>>,ITweenBuilderBuffer
@@ -34,6 +35,8 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     private TweenBuilderBuffer<TValue, TAdapter>? next;
     public ref TweenBuilderBuffer<TValue, TAdapter>? NextNode => ref next;
     public Func<object?, TValue>? GetCallback;
+    
+    public double TotalDuration => Delay + Duration;
 
     public static TweenBuilderBuffer<TValue, TAdapter> Rent()
     {
