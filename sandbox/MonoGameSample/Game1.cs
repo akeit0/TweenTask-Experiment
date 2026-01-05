@@ -219,15 +219,15 @@ public class Game1 : Game
                     .WithOnEnd(this, static (o, result) =>
                     {
                         o.MoveTweenCount--;
-                        switch (result.ResultType)
+                        switch (result.EventType)
                         {
-                            case TweenResultType.Complete:
+                            case TweenEventType.Complete:
                             {
                                 o.soundFx.PlayWave(440 * MathF.Pow(2, o.rand.NextSingle() - 0.5f), 50, WaveType.Square,
                                     0.3f);
                             }
                                 break;
-                            case TweenResultType.Cancel:
+                            case TweenEventType.Cancel:
                             {
                                 o.soundFx.PlayWave(0, 100, WaveType.Noise,
                                     0.1f);
@@ -270,20 +270,20 @@ public class Game1 : Game
                     .Append(newObj.TweenRotationTo(MathF.PI * 2, 1))
                     .Append(newObj.TweenPositionTo(new Vector2(100, 0), 1).WithRelative())
                     .Append(newObj.TweenPositionTo(new Vector2(0, 100), 1).WithRelative())
-                    .WithOnEnd(this,
+                    .WithOnEvent(this,
                         static (o, result) =>
                         {
                             o.MoveTweenCount--;
-                            switch (result.ResultType)
+                            switch (result.EventType)
                             {
-                                case TweenResultType.Complete:
+                                case TweenEventType.Complete:
                                 {
                                     o.soundFx.PlayWave(440 * MathF.Pow(2, o.rand.NextSingle() - 0.5f), 50,
                                         WaveType.Square,
                                         0.3f);
                                 }
                                     break;
-                                case TweenResultType.Cancel:
+                                case TweenEventType.Cancel:
                                 {
                                     o.soundFx.PlayWave(0, 100, WaveType.Noise,
                                         0.1f);
@@ -349,7 +349,7 @@ public class Game1 : Game
                 await obj.TweenSizeTo(0, 2).WithEase(Ease.Linear)
                     .WithOnEnd(this, (game, result) =>
                     {
-                        if (result.ResultType == TweenResultType.Complete)
+                        if (result.EventType == TweenEventType.Complete)
                         {
                             game.DeletingCount--;
                         }

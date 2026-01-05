@@ -44,12 +44,12 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         }
     }
 
-    protected void ReturnWithContinuation(TweenResultType result)
+    protected void ReturnWithContinuation(TweenEventType @event)
     {
         if (Core.TryGetContinuation(out var continuation, out var continuationState))
         {
             TryReturn();
-            continuation(continuationState, new(result));
+            continuation(continuationState, new(@event));
         }
         else
         {
@@ -89,7 +89,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         }
         else
         {
-            ReturnWithContinuation(TweenResultType.Cancel);
+            ReturnWithContinuation(TweenEventType.Cancel);
         }
 
 
@@ -153,7 +153,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, int loopCount,
         LoopType loopType, Ease ease,
         TAdapter adapter,
-        Action<object?, T>? action, object? state, Action<object?, TweenResult>? endCallback, object? endState,
+        Action<object?, T>? action, object? state, Action<object?, TweenEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
         if (!pool.TryPop(out var promise)) promise = new();
@@ -187,7 +187,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             if (Core.IsSetContinuationWithAwait)
                 Core.TrySetCanceled(CancellationToken);
             else
-                ReturnWithContinuation(TweenResultType.Cancel);
+                ReturnWithContinuation(TweenEventType.Cancel);
 
             return;
         }
@@ -222,7 +222,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         }
 
 
-        ReturnWithContinuation(TweenResultType.Complete);
+        ReturnWithContinuation(TweenEventType.Complete);
 
         return;
     }
@@ -239,7 +239,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             if (Core.IsSetContinuationWithAwait)
                 Core.TrySetCanceled(CancellationToken);
             else
-                ReturnWithContinuation(TweenResultType.Cancel);
+                ReturnWithContinuation(TweenEventType.Cancel);
 
             return false;
         }
@@ -259,7 +259,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         }
 
 
-        ReturnWithContinuation(TweenResultType.Complete);
+        ReturnWithContinuation(TweenEventType.Complete);
 
         return false;
     }
@@ -272,7 +272,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         if (Core.IsSetContinuationWithAwait)
             Core.TrySetResult();
         else
-            ReturnWithContinuation(TweenResultType.Complete);
+            ReturnWithContinuation(TweenEventType.Complete);
 
         return true;
     }

@@ -19,7 +19,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public LoopType LoopType;
     public Ease Ease;
     public bool IsRelative;
-    public Action<object?, TweenResult>? OnEndAction;
+    public Action<object?, TweenEvent>? OnEndAction;
     public double PlaybackSpeed = 1;
     public ITweenRunner Runner;
     public object? OnEndState;

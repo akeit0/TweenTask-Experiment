@@ -134,7 +134,7 @@ public struct TweenTaskCompletionSourceCore
                     null) != null)
                 if ((flags & TweenTaskCompletionSourceFlags.Wrapped) != 0)
                     Unsafe.As<CallBackWrapper>(continuationState)
-                        .Run(TweenResultType.Complete);
+                        .Run(TweenEventType.Complete);
                 else continuation(continuationState);
 
             return true;
@@ -145,7 +145,7 @@ public struct TweenTaskCompletionSourceCore
 
     /// <summary>Completes with a successful result.</summary>
     [DebuggerHidden]
-    public bool TryGetContinuation(out Action<object?, TweenResult> continuationAction,
+    public bool TryGetContinuation(out Action<object?, TweenEvent> continuationAction,
         out object? continuationActionState)
     {
         Unsafe.SkipInit(out continuationAction);
@@ -156,7 +156,7 @@ public struct TweenTaskCompletionSourceCore
                 Interlocked.CompareExchange(ref continuation, TweenTaskCompletionSourceCoreShared.s_sentinel,
                     null) != null)
             {
-                continuationAction = Unsafe.As<Action<object?, TweenResult>>(continuation);
+                continuationAction = Unsafe.As<Action<object?, TweenEvent>>(continuation);
                 continuationActionState = continuationState;
                 return true;
             }
@@ -206,7 +206,7 @@ public struct TweenTaskCompletionSourceCore
 
                 if ((flags & TweenTaskCompletionSourceFlags.Wrapped) != 0)
                     Unsafe.As<CallBackWrapper>(continuationState)
-                        .Run(TweenResultType.Cancel);
+                        .Run(TweenEventType.Cancel);
                 else continuation(continuationState);
 
             return true;
@@ -299,7 +299,7 @@ public struct TweenTaskCompletionSourceCore
             // It will cause call OnCompleted multiple time, invalid.
             if (!ReferenceEquals(oldContinuation, TweenTaskCompletionSourceCoreShared.s_sentinel))
             {
-                var wrapper = CallBackWrapper.Create(Unsafe.As<Action<object?, TweenResult>>(oldContinuation),
+                var wrapper = CallBackWrapper.Create(Unsafe.As<Action<object?, TweenEvent>>(oldContinuation),
                     continuationState!, continuation, state);
                 this.continuation = static _ => { };
                 continuationState = wrapper;
@@ -311,7 +311,7 @@ public struct TweenTaskCompletionSourceCore
         }
     }
 
-    public void OnCompletedManual(Action<object?, TweenResult> continuation, object? state)
+    public void OnCompletedManual(Action<object?, TweenEvent> continuation, object? state)
     {
         if (continuation == null) throw new ArgumentNullException(nameof(continuation));
         this.continuation = Unsafe.As<Action<object?>>(continuation);
@@ -331,14 +331,14 @@ public struct TweenTaskCompletionSourceCore
 internal class CallBackWrapper : ITaskPoolNode<CallBackWrapper>
 {
     private static TaskPool<CallBackWrapper> pool;
-    public Action<object?, TweenResult> Callback = null!;
+    public Action<object?, TweenEvent> Callback = null!;
     public Action<object> Continuation = null!;
     public object ContinuationState = null!;
     private CallBackWrapper? next = null;
     public object State = null!;
     public ref CallBackWrapper? NextNode => ref next;
 
-    public static CallBackWrapper Create(Action<object?, TweenResult> callback, object state,
+    public static CallBackWrapper Create(Action<object?, TweenEvent> callback, object state,
         Action<object> continuation, object continuationState)
     {
         if (!pool.TryPop(out var wrapper)) wrapper = new();
@@ -351,7 +351,7 @@ internal class CallBackWrapper : ITaskPoolNode<CallBackWrapper>
     }
 
 
-    public void Run(TweenResultType resultType)
+    public void Run(TweenEventType eventType)
     {
         var callback = Callback;
         var callbackState = State;
@@ -364,7 +364,7 @@ internal class CallBackWrapper : ITaskPoolNode<CallBackWrapper>
         pool.TryPush(this);
         try
         {
-            callback(callbackState, new(resultType));
+            callback(callbackState, new(eventType));
         }
         catch (Exception e)
         {

@@ -19,7 +19,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
 
     public static TweenSequencePromise Create(TweenSequenceItem[] items, int count, double delay, double duration,
         double playBackSpeed, int loopCount,
-        LoopType loopType, Ease ease, Action<object?, TweenResult>? endCallback, object? endState,
+        LoopType loopType, Ease ease, Action<object?, TweenEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
         if (!_pool.TryPop(out var promise))
@@ -50,7 +50,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         if (Core.IsSetContinuationWithAwait)
             Core.TrySetResult();
         else
-            ReturnWithContinuation(TweenResultType.Complete);
+            ReturnWithContinuation(TweenEventType.Complete);
 
         return true;
     }
@@ -88,7 +88,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             if (Core.IsSetContinuationWithAwait)
                 Core.TrySetCanceled(CancellationToken);
             else
-                ReturnWithContinuation(TweenResultType.Cancel);
+                ReturnWithContinuation(TweenEventType.Cancel);
 
             return false;
         }
@@ -127,7 +127,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
                 if (Core.IsSetContinuationWithAwait)
                     Core.TrySetCanceled(CancellationToken);
                 else
-                    ReturnWithContinuation(TweenResultType.Cancel);
+                    ReturnWithContinuation(TweenEventType.Cancel);
 
                 return false;
             }
@@ -143,7 +143,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             return false;
         }
 
-        ReturnWithContinuation(TweenResultType.Complete);
+        ReturnWithContinuation(TweenEventType.Complete);
 
         return false;
     }

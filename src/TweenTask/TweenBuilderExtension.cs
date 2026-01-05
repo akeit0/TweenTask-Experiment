@@ -6,8 +6,8 @@ namespace TweenTasks;
 
 public static class TweenBuilderExtension
 {
-    private static readonly Action<object?, TweenResult> OnEndWrapAction =
-        (state, result) => Unsafe.As<Action<TweenResult>>(state)(result);
+    private static readonly Action<object?, TweenEvent> OnEndWrapAction =
+        (state, result) => Unsafe.As<Action<TweenEvent>>(state)(result);
 
     extension<TValue, TAdapter>(TweenBuilder<TValue, TAdapter> builder) where TAdapter : ITweenAdapter<TValue>
     {
@@ -34,15 +34,15 @@ public static class TweenBuilderExtension
         }
 
         public TweenBuilder<TValue, TAdapter> WithOnEnd<TState>(TState state,
-            Action<TState, TweenResult> callback) where TState : class
+            Action<TState, TweenEvent> callback) where TState : class
         {
             builder.Validate();
             builder.Buffer.OnEndState = state;
-            builder.Buffer.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
+            builder.Buffer.OnEndAction = Unsafe.As<Action<object?, TweenEvent>>(callback);
             return builder;
         }
 
-        public TweenBuilder<TValue, TAdapter> WithOnEnd(Action<TweenResult> callback)
+        public TweenBuilder<TValue, TAdapter> WithOnEnd(Action<TweenEvent> callback)
         {
             builder.Validate();
             builder.Buffer.OnEndState = callback;
@@ -67,12 +67,12 @@ public static class TweenBuilderExtension
 
     extension(TweenSequenceBuilder builder)
     {
-        public TweenSequenceBuilder WithOnEnd<TState>(TState state,
-            Action<TState, TweenResult> callback) where TState : class
+        public TweenSequenceBuilder WithOnEvent<TState>(TState state,
+            Action<TState, TweenEvent> callback) where TState : class
         {
             builder.Validate();
             builder.buffer.EndState = state;
-            builder.buffer.OnEndAction = Unsafe.As<Action<object?, TweenResult>>(callback);
+            builder.buffer.OnEndAction = Unsafe.As<Action<object?, TweenEvent>>(callback);
             return builder;
         }
         

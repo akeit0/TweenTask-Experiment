@@ -63,7 +63,7 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     internal TweenSequenceItem[]? TweensBuffer;
     internal int TweenCount;
     internal object? EndState;
-    internal Action<object?, TweenResult>? OnEndAction;
+    internal Action<object?, TweenEvent>? OnEndAction;
     internal double LastStart;
     internal double Duration;
     internal int LoopCount = 1;
