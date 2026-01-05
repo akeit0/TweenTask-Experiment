@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 
@@ -9,7 +10,7 @@ namespace TweenTasks.Internal;
 internal abstract class TweenPromise : IValueTaskSource, IReturnable
 {
     protected CancellationToken CancellationToken;
-    protected TweenTaskCompletionSourceCore Core;
+    protected TweenTaskCompletionSourceLightCore Core;
     protected double Delay;
     protected double Duration;
     protected int LoopCount;
@@ -18,6 +19,9 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     public double PlaybackSpeed;
     protected object? State;
     public double Time;
+
+    protected Action<object?, TweenEvent>? EventCallback;
+    protected object? EventState;
 
     public bool IsPreserved
     {
@@ -44,22 +48,31 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         }
     }
 
-    protected void ReturnWithContinuation(TweenEventType @event)
+    protected void ReturnWithContinuation(TweenEvent @event)
     {
-        if (Core.TryGetContinuation(out var continuation, out var continuationState))
+        var lastEventCallback = EventCallback;
         {
-            TryReturn();
-            continuation(continuationState, new(@event));
+            if (@event.EventType == TweenEventType.Cancel)
+            {
+                Core.TrySetCanceled(ref EventCallback, ref EventState,
+                    CancellationToken.IsCancellationRequested ? CancellationToken : default);
+            }
+            else Core.TrySetResult(ref EventCallback, ref EventState, @event);
         }
-        else
+      
+        if (lastEventCallback == null || (lastEventCallback != LightCallBackWrapper.RunAction && Core.HaveEvent))
         {
-            TryReturn();
+            if (Core.HaveEvent)
+            {
+                Core.MarkHandled();
+                TryReturn();
+            }
         }
     }
 
     public ValueTaskSourceStatus GetStatus(short token)
     {
-        return Core.GetStatus(token);
+        return Core.GetStatus(EventCallback, token);
     }
 
     public void OnCompleted(Action<object> continuation, object state, short token,
@@ -67,11 +80,12 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     {
         try
         {
-            Core.OnCompleted(continuation, state, token);
+            Core.OnCompleted(continuation, state, token,
+                ref Unsafe.As<Action<object, TweenEvent>, Action<object>>(ref EventCallback), ref EventState);
         }
         catch (Exception e)
         {
-            Console.WriteLine(e + new StackTrace().ToString());
+            TweenSystem.GetUnhandledExceptionHandler()(e);
         }
     }
 
@@ -80,17 +94,8 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     public bool TryCancel(short token)
     {
         if (Core.Version != token) return false;
-        if (Core.IsSetContinuationWithAwait)
-        {
-            Core.Deactivate();
-            Core.TrySetCanceled(CancellationToken.IsCancellationRequested
-                ? CancellationToken
-                : CancellationToken.None);
-        }
-        else
-        {
-            ReturnWithContinuation(TweenEventType.Cancel);
-        }
+        Core.Deactivate();
+        ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
 
         return true;
@@ -129,7 +134,7 @@ internal static class TweenMath
                 progress = loopProgress;
                 if (loopType == LoopType.Incremental)
                 {
-                    offset = currentLoop * 1;//EaseUtility.Evaluate(1, ease);
+                    offset = currentLoop * 1; //EaseUtility.Evaluate(1, ease);
                 }
             }
         }
@@ -156,8 +161,11 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         Action<object?, T>? action, object? state, Action<object?, TweenEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
-        if (!pool.TryPop(out var promise)) promise = new();
-        Debug.Assert(!promise.Core.IsSetContinuationWithAwait);
+        if (!pool.TryPop(out var promise))
+        {
+            promise = new();
+        }
+
         promise.Delay = delay;
         promise.Duration = duration;
         promise.LoopCount = loopCount;
@@ -166,11 +174,13 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         promise.Ease = ease;
         promise.action = action;
         promise.State = state;
+        promise.EventCallback = endCallback;
+        promise.EventState = endState;
         promise.adapter = adapter;
         promise.CancellationToken = cancellationToken;
         promise.Core.Activate();
 
-        if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
+        if (endCallback != null) promise.Core.HaveEvent = true;
         promise.Time = 0;
         token = promise.Core.Version;
         return promise;
@@ -184,10 +194,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
-            if (Core.IsSetContinuationWithAwait)
-                Core.TrySetCanceled(CancellationToken);
-            else
-                ReturnWithContinuation(TweenEventType.Cancel);
+            ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
             return;
         }
@@ -210,19 +217,13 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             }
         }
 
-        double easedValue=TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
+        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
         action?.Invoke(State, adapter.Evaluate(easedValue));
         if (totalProgress < 1) return;
 
-        if (Core.IsSetContinuationWithAwait)
-        {
-            Core.TrySetResult();
-            return;
-        }
-
-
-        ReturnWithContinuation(TweenEventType.Complete);
+        if (!Core.IsPreserved)
+            ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 
         return;
     }
@@ -236,30 +237,20 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
         var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
-            if (Core.IsSetContinuationWithAwait)
-                Core.TrySetCanceled(CancellationToken);
-            else
-                ReturnWithContinuation(TweenEventType.Cancel);
+            ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
             return false;
         }
 
         if (Delay > Time) return true;
         var totalProgress = progress / LoopCount;
-        double easedValue=TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
+        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
         //Console.WriteLine(adapter+" " +adapter.Evaluate(easedValue));
         action?.Invoke(State, adapter.Evaluate(easedValue));
         if (totalProgress < 1) return true;
 
-        if (Core.IsSetContinuationWithAwait)
-        {
-            Core.TrySetResult();
-            return false;
-        }
-
-
-        ReturnWithContinuation(TweenEventType.Complete);
+        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 
         return false;
     }
@@ -269,10 +260,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     {
         if (Core.Version != token) return false;
         action?.Invoke(State, adapter.Evaluate(EaseUtility.Evaluate(1, Ease)));
-        if (Core.IsSetContinuationWithAwait)
-            Core.TrySetResult();
-        else
-            ReturnWithContinuation(TweenEventType.Complete);
+        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 
         return true;
     }
@@ -280,9 +268,14 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
     public override bool TryReturn()
     {
         if (Core.IsPreserved) return false;
+        Debug.Assert(next == null);
         Core.Reset();
+        EventCallback = null;
+        EventState = null;
+        adapter = default!;
+        action = null;
+        State = null;
         CancellationToken = CancellationToken.None;
-        action = null!;
         return pool.TryPush(this);
     }
 }

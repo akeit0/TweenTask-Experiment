@@ -37,7 +37,9 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         promise.PlaybackSpeed = playBackSpeed;
         promise.CancellationToken = cancellationToken;
         promise.Core.Activate();
-        if (endCallback != null) promise.Core.OnCompletedManual(endCallback, endState);
+        promise.EventCallback = endCallback;
+        promise.EventState = endState;
+        if (endCallback != null) promise.Core.HaveEvent = true;
         promise.Time = 0;
         token = promise.Core.Version;
         promise.LatestTime = -1;
@@ -47,10 +49,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
     public override bool TryComplete(short token)
     {
         if (Core.Version != token) return false;
-        if (Core.IsSetContinuationWithAwait)
-            Core.TrySetResult();
-        else
-            ReturnWithContinuation(TweenEventType.Complete);
+        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 
         return true;
     }
@@ -71,7 +70,9 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         }
 
         ArrayPool<TweenSequenceItem>.Shared.Return(SequenceItems, true);
-
+        EventCallback = null;
+        EventState = null;
+        State = null;
         CancellationToken = CancellationToken.None;
         return true;
     }
@@ -85,10 +86,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
-            if (Core.IsSetContinuationWithAwait)
-                Core.TrySetCanceled(CancellationToken);
-            else
-                ReturnWithContinuation(TweenEventType.Cancel);
+            ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
             return false;
         }
@@ -123,11 +121,8 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
-                if (Core.IsSetContinuationWithAwait)
-                    Core.TrySetCanceled(CancellationToken);
-                else
-                    ReturnWithContinuation(TweenEventType.Cancel);
+                TweenSystem.GetUnhandledExceptionHandler()(e);
+                ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
                 return false;
             }
@@ -136,14 +131,8 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         LatestTime = Math.Max(LatestTime, position);
         if (IsPreserved) return true;
         if (progress < 1) return true;
-
-        if (Core.IsSetContinuationWithAwait)
-        {
-            Core.TrySetResult();
-            return false;
-        }
-
-        ReturnWithContinuation(TweenEventType.Complete);
+        if (Core.IsPreserved) return true;
+        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 
         return false;
     }

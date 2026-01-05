@@ -38,7 +38,7 @@ public enum TweenTaskCompletionSourceFlags
     Pooled = 2,
     Wrapped = 4,
     HasHandledError = 8,
-    Preserved =16,
+    Preserved = 16,
 }
 
 [StructLayout(LayoutKind.Auto)]
@@ -61,7 +61,7 @@ public struct TweenTaskCompletionSourceCore
     }
 
     public bool IsActive => (flags & TweenTaskCompletionSourceFlags.Pooled) == 0;
-    
+
     public bool IsPreserved
     {
         get => (flags & TweenTaskCompletionSourceFlags.Preserved) != 0;
@@ -325,6 +325,384 @@ public struct TweenTaskCompletionSourceCore
         if (token != Version)
             throw new InvalidOperationException(
                 "Token version is not matched, can not await twice or get Status after await.");
+    }
+}
+
+[Flags]
+public enum TweenTaskCompletionLightSourceFlags
+{
+    HaveEvent = 1,
+    Pooled = 2,
+    Done = 4,
+    HasHandledError = 8,
+    Preserved = 16,
+}
+
+[StructLayout(LayoutKind.Auto)]
+public struct TweenTaskCompletionSourceLightCore
+{
+    private object? error; // ExceptionHolder or OperationCanceledException
+    private TweenTaskCompletionLightSourceFlags flags;
+
+    public void Activate()
+    {
+        flags &= ~TweenTaskCompletionLightSourceFlags.Pooled;
+    }
+
+    public void Deactivate()
+    {
+        flags |= TweenTaskCompletionLightSourceFlags.Pooled;
+    }
+
+    public bool IsActive => (flags & TweenTaskCompletionLightSourceFlags.Pooled) == 0;
+
+    public bool IsPreserved
+    {
+        get => (flags & TweenTaskCompletionLightSourceFlags.Preserved) != 0;
+        set
+        {
+            if (value)
+            {
+                flags |= TweenTaskCompletionLightSourceFlags.Preserved;
+            }
+            else
+            {
+                flags &= ~TweenTaskCompletionLightSourceFlags.Preserved;
+            }
+        }
+    }
+
+    internal void MarkHandled()
+    {
+        flags &= ~TweenTaskCompletionLightSourceFlags.HasHandledError;
+    }
+
+    [DebuggerHidden]
+    public void Reset()
+    {
+        ReportUnhandledError();
+
+        unchecked
+        {
+            Version += 1; // incr version.
+        }
+
+        error = null;
+        flags = TweenTaskCompletionLightSourceFlags.Pooled;
+    }
+
+    private void ReportUnhandledError()
+    {
+        if ((flags & TweenTaskCompletionLightSourceFlags.HasHandledError) != 0)
+            try
+            {
+                if (error is OperationCanceledException oc)
+                {
+                    TweenSystem.GetUnhandledExceptionHandler().Invoke(oc);
+                }
+                else if (error is ExceptionHolder e)
+                {
+                    TweenSystem.GetUnhandledExceptionHandler().Invoke(e.GetException().SourceException);
+                }
+            }
+            catch
+            {
+            }
+    }
+
+    public bool HaveEvent
+    {
+        get => (flags & TweenTaskCompletionLightSourceFlags.HaveEvent) != 0;
+        set
+        {
+            if (value)
+            {
+                flags |= TweenTaskCompletionLightSourceFlags.HaveEvent;
+            }
+            else
+            {
+                flags &= ~TweenTaskCompletionLightSourceFlags.HaveEvent;
+            }
+        }
+    }
+
+    /// <summary>Completes with a successful result.</summary>
+    [DebuggerHidden]
+    public bool TrySetResult(ref Action<object?, TweenEvent>? continuation, ref object continuationState,
+        TweenEvent tweenEvent)
+    {
+        ref var flagRef = ref Unsafe.As<TweenTaskCompletionLightSourceFlags, int>(ref flags);
+        var flagVal = flagRef;
+        while (Interlocked.CompareExchange(ref flagRef, flagVal | (int)TweenTaskCompletionLightSourceFlags.Done,
+                   flagVal) != flagVal)
+        {
+            flagVal = flagRef;
+            if ((flagRef & (int)TweenTaskCompletionLightSourceFlags.Done) != 0)
+                return false;
+        }
+
+        // setup result
+        if (continuation != null ||
+            Interlocked.CompareExchange(ref continuation, TweenTaskCompletionLightSourceCoreShared.s_sentinel,
+                null) != null)
+        {
+            if (HaveEvent)
+            {
+                continuation(continuationState, tweenEvent);
+            }
+            else
+            {
+                Unsafe.As<Action<object>>(continuation)(continuationState);
+            }
+        }
+
+        return true;
+    }
+
+    [DebuggerHidden]
+    public bool TrySetCanceled(ref Action<object?, TweenEvent>? continuation, ref object continuationState,
+        CancellationToken cancellationToken)
+    {
+        ref var flagRef = ref Unsafe.As<TweenTaskCompletionLightSourceFlags, int>(ref flags);
+        var flagVal = flagRef;
+        while (Interlocked.CompareExchange(ref flagRef, flagVal | (int)TweenTaskCompletionLightSourceFlags.Done,
+                   flagVal) != flagVal)
+        {
+            flagVal = flagRef;
+            if ((flagRef & (int)TweenTaskCompletionLightSourceFlags.Done) != 0)
+                return false;
+        }
+
+        flags |= TweenTaskCompletionLightSourceFlags.HasHandledError;
+        error = cancellationToken == CancellationToken.None
+            ? defaultCancelledException
+            : new OperationCanceledException(cancellationToken);
+
+        // setup result
+        if (continuation != null ||
+            Interlocked.CompareExchange(ref continuation, TweenTaskCompletionLightSourceCoreShared.s_sentinel,
+                null) != null)
+        {
+            if (HaveEvent)
+            {
+                continuation(continuationState, new TweenEvent(TweenEventType.Cancel));
+            }
+            else
+            {
+                Unsafe.As<Action<object>>(continuation)(continuationState);
+            }
+        }
+
+        return true;
+    }
+
+
+    private static readonly OperationCanceledException defaultCancelledException = new(CancellationToken.None);
+
+    /// <summary>Gets the operation version.</summary>
+    [DebuggerHidden]
+    public short Version { get; private set; }
+
+    /// <summary>Gets the status of the operation.</summary>
+    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    [DebuggerHidden]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ValueTaskSourceStatus GetStatus(object? continuation, short token)
+    {
+        ValidateToken(token);
+        return continuation == null || (flags & TweenTaskCompletionLightSourceFlags.Done) == 0
+            ? ValueTaskSourceStatus.Pending
+            : error == null
+                ? ValueTaskSourceStatus.Succeeded
+                : error is OperationCanceledException
+                    ? ValueTaskSourceStatus.Canceled
+                    : ValueTaskSourceStatus.Faulted;
+    }
+
+    /// <summary>Gets the result of the operation.</summary>
+    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    // [StackTraceHidden]
+    [DebuggerHidden]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void GetResult(short token)
+    {
+        ValidateToken(token);
+
+        if ((flags & TweenTaskCompletionLightSourceFlags.Done) == 0)
+            throw new InvalidOperationException("Not yet completed, TweenTask only allow to use await.");
+
+        if (error != null)
+        {
+            flags &= ~TweenTaskCompletionLightSourceFlags.HasHandledError;
+            if (error is OperationCanceledException oce)
+            {
+                if (oce == defaultCancelledException)
+                {
+                    throw new OperationCanceledException();
+                }
+
+                throw oce;
+            }
+
+            if (error is ExceptionHolder eh) eh.GetException().Throw();
+
+            throw new InvalidOperationException("Critical: invalid exception type was held.");
+        }
+    }
+
+    /// <summary>Schedules the continuation action for this operation.</summary>
+    /// <param name="continuation">The continuation to invoke when the operation has completed.</param>
+    /// <param name="state">The state object to pass to <paramref name="continuation" /> when it's invoked.</param>
+    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    [DebuggerHidden]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void OnCompleted(Action<object> continuation, object state,
+        short token /*, ValueTaskSourceOnCompletedFlags flags */, ref Action<object>? contRef, ref object? contState)
+    {
+        if (continuation == null) throw new ArgumentNullException(nameof(continuation));
+
+        ValidateToken(token);
+
+        /* no use ValueTaskSourceOnCompletedFlags, always no capture ExecutionContext and SynchronizationContext. */
+
+        /*
+        PatternA: GetStatus=Pending => OnCompleted => TrySet*** => GetResult
+        PatternB: TrySet*** => GetStatus=!Pending => GetResult
+        PatternC: GetStatus=Pending => TrySet/OnCompleted(race condition) => GetResult
+        C.1: win OnCompleted -> TrySet invoke saved continuation
+        C.2: win TrySet -> should invoke continuation here.
+    */
+        object? oldContinuation = contRef;
+        if (oldContinuation == null)
+        {
+            contState = state;
+            oldContinuation = Interlocked.CompareExchange(ref contRef, continuation, null);
+        }
+        else
+        {
+            var wrapper = LightCallBackWrapper.Create(
+                Unsafe.As<Action<object?, TweenEvent>>(oldContinuation),
+                contState!,
+                continuation,
+                state);
+            var newContinuation = Interlocked.CompareExchange(ref Unsafe.As<Action<object>, object>(ref contRef),
+                (LightCallBackWrapper.RunAction), oldContinuation);
+            if (ReferenceEquals(newContinuation, oldContinuation))
+            {
+                contState = wrapper;
+                return;
+            }
+
+            wrapper.Release();
+            oldContinuation = newContinuation;
+        }
+
+        if (oldContinuation != null)
+        {
+            // already running continuation in TrySet.
+            // It will cause call OnCompleted multiple time, invalid.
+            if (!ReferenceEquals(oldContinuation, TweenTaskCompletionLightSourceCoreShared.s_sentinel))
+            {
+                throw new InvalidOperationException(
+                    "Already continuation registered, can not await twice or get Status after await.");
+            }
+
+            continuation(state);
+        }
+    }
+
+    [DebuggerHidden]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ValidateToken(short token)
+    {
+        if (token != Version)
+            throw new InvalidOperationException(
+                "Token version is not matched, can not await twice or get Status after await.");
+    }
+}
+
+internal static class
+    TweenTaskCompletionLightSourceCoreShared // separated out of generic to avoid unnecessary duplication
+{
+    internal static readonly Action<object?, TweenEvent> s_sentinel = CompletionSentinel;
+
+    private static void CompletionSentinel(object? _, TweenEvent @event) // named method to aid debugging
+    {
+        throw new InvalidOperationException("The sentinel delegate should never be invoked.");
+    }
+}
+
+internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
+{
+    private static TaskPool<LightCallBackWrapper> pool;
+    public Action<object?, TweenEvent> Callback = null!;
+    public Action<object> Continuation = null!;
+    public object ContinuationState = null!;
+    public object State = null!;
+
+    private LightCallBackWrapper? next = null;
+    public ref LightCallBackWrapper? NextNode => ref next;
+
+    public static LightCallBackWrapper Create(Action<object?, TweenEvent> callback, object state,
+        Action<object> continuation, object continuationState)
+    {
+        if (!pool.TryPop(out var wrapper)) wrapper = new();
+
+        wrapper.Callback = callback;
+        wrapper.State = state;
+        wrapper.Continuation = continuation;
+        wrapper.ContinuationState = continuationState;
+        return wrapper;
+    }
+
+    public static Action<object?, TweenEvent> RunAction = static (w, e) => Unsafe.As<LightCallBackWrapper>(w).Run(e);
+
+    public void Run(TweenEvent tweenEvent)
+    {
+        var callback = Callback;
+        var callbackState = State;
+        var continuation = Continuation;
+        var continuationState = ContinuationState;
+        if (tweenEvent.EventType is TweenEventType.Complete or TweenEventType.Cancel)
+        {
+            Callback = null!;
+            Continuation = null!;
+            State = null!;
+            ContinuationState = null!;
+            pool.TryPush(this);
+        }
+
+        try
+        {
+            callback(callbackState, tweenEvent);
+        }
+        catch (Exception e)
+        {
+            try
+            {
+                TweenSystem.GetUnhandledExceptionHandler()(e);
+            }
+            catch
+            {
+                //
+            }
+        }
+        finally
+        {
+            if (tweenEvent.EventType is TweenEventType.Complete or TweenEventType.Cancel)
+            {
+                continuation(continuationState);
+            }
+        }
+    }
+
+    public void Release()
+    {
+        Callback = null!;
+        Continuation = null!;
+        State = null!;
+        ContinuationState = null!;
+        pool.TryPush(this);
     }
 }
 

@@ -73,6 +73,7 @@ public struct TaskPool<T>
         {
             if (size < MaxPoolSize)
             {
+                Debug.Assert(item.NextNode == null);
                 item.NextNode = root;
                 root = item;
                 size++;
