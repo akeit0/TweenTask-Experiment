@@ -82,7 +82,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         Time += PlaybackSpeed * deltaTime;
         Time = Math.Clamp(Time, 0, Delay + Duration);
         var position = Time - Delay;
-        var progress =  position / Duration;
+        var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
             if (Core.IsSetContinuationWithAwait)
@@ -94,34 +94,10 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         }
 
         if (PlaybackSpeed > 0 && Delay > Time) return true;
-        double easedValue;
-        if (LoopCount > 1 && progress >= 1)
-        {
-            var currentLoop = (int)(progress);
-            var loopProgress = progress - currentLoop;
-            if (currentLoop % 2 == 1 && (LoopType == LoopType.Yoyo || LoopType == LoopType.Flip))
-            {
-                if (LoopType == LoopType.Flip)
-                {
-                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
-                }
-                else
-                {
-                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
-                }
-            }
-            else
-            {
-                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
-            }
-        }
-        else
-        {
-            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
-        }
-        
+        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
+
         position = easedValue * Duration;
-        
+
         foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
         {
             if (PlaybackSpeed > 0 && sequenceItem.Position > position)

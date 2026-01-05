@@ -102,15 +102,40 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
 
 internal static class TweenMath
 {
-    // public static double CalculateProgress(double time,  double duration, int loopCount,
-    //     LoopType loopType,out bool isComplete)
-    // {
-    //     var position = time;
-    //     
-    //     var progress = position / duration;
-    //     progress = Math.Clamp(progress, 0, 1);
-    //     return progress;
-    // }
+    public static double CalculateProgress(double progress, int loopCount,
+        LoopType loopType, Ease ease)
+    {
+        var offset = 0.0;
+        var factor = 1.0;
+        if (loopCount > 1 && progress >= 1)
+        {
+            var currentLoop = (int)(progress);
+            var loopProgress = progress - currentLoop;
+            if (currentLoop % 2 == 1 && loopType is LoopType.Yoyo or LoopType.Flip)
+            {
+                if (loopType == LoopType.Flip)
+                {
+                    offset = 1;
+                    factor = -1;
+                    progress = loopProgress;
+                }
+                else
+                {
+                    progress = 1 - loopProgress;
+                }
+            }
+            else
+            {
+                progress = loopProgress;
+                if (loopType == LoopType.Incremental)
+                {
+                    offset = currentLoop * 1;//EaseUtility.Evaluate(1, ease);
+                }
+            }
+        }
+
+        return offset + factor * EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), ease);
+    }
 }
 
 internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
@@ -185,35 +210,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             }
         }
 
-        double easedValue;
-        if (LoopCount > 1 && progress >= 1)
-        {
-            var currentLoop = (int)(progress);
-            var loopProgress = progress - currentLoop;
-            if (currentLoop % 2 == 1 && (LoopType == LoopType.Yoyo || LoopType == LoopType.Flip))
-            {
-                if (LoopType == LoopType.Flip)
-                {
-                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
-                }
-                else
-                {
-                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
-                }
-            }
-            else
-            {
-                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
-                if (LoopType == LoopType.Incremental)
-                {
-                    easedValue += currentLoop * EaseUtility.Evaluate(1, Ease);
-                }
-            }
-        }
-        else
-        {
-            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
-        }
+        double easedValue=TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
         action?.Invoke(State, adapter.Evaluate(easedValue));
         if (totalProgress < 1) return;
@@ -249,32 +246,9 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
 
         if (Delay > Time) return true;
         var totalProgress = progress / LoopCount;
-        double easedValue;
-        if (LoopCount > 1 && progress >= 1)
-        {
-            var currentLoop = (int)(progress);
-            var loopProgress = progress - currentLoop;
-            if (currentLoop % 2 == 1 && LoopType is LoopType.Yoyo or LoopType.Flip)
-            {
-                if (LoopType == LoopType.Flip)
-                {
-                    easedValue = 1 - EaseUtility.Evaluate(loopProgress, Ease);
-                }
-                else
-                {
-                    easedValue = EaseUtility.Evaluate(1 - loopProgress, Ease);
-                }
-            }
-            else
-            {
-                easedValue = EaseUtility.Evaluate(loopProgress, Ease);
-            }
-        }
-        else
-        {
-            easedValue = EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), Ease);
-        }
+        double easedValue=TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
+        //Console.WriteLine(adapter+" " +adapter.Evaluate(easedValue));
         action?.Invoke(State, adapter.Evaluate(easedValue));
         if (totalProgress < 1) return true;
 

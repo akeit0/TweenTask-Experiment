@@ -143,7 +143,7 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
     {
         Validate();
 
-        Buffer.ApplyAdapterState();
+        //Buffer.ApplyAdapterState();
         var promise = Buffer.CreatePromise(out var token);
         return new(
             promise,
