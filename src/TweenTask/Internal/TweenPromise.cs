@@ -51,22 +51,25 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     protected void ReturnWithContinuation(TweenEvent @event)
     {
         var lastEventCallback = EventCallback;
+
+        if (Core.TrySet())
         {
-            if (@event.EventType == TweenEventType.Cancel)
+            var lastState = EventState;
+
+            if (lastEventCallback == null || (lastEventCallback != LightCallBackWrapper.RunAction && Core.HaveEvent))
             {
-                Core.TrySetCanceled(ref EventCallback, ref EventState,
-                    CancellationToken.IsCancellationRequested ? CancellationToken : default);
-            }
-            else Core.TrySetResult(ref EventCallback, ref EventState, @event);
-        }
-      
-        if (lastEventCallback == null || (lastEventCallback != LightCallBackWrapper.RunAction && Core.HaveEvent))
-        {
-            if (Core.HaveEvent)
-            {
-                Core.MarkHandled();
                 TryReturn();
             }
+            else
+            {
+                if (@event.EventType == TweenEventType.Cancel)
+                {
+                    Core.SetCanceledException(CancellationToken.IsCancellationRequested ? CancellationToken : default);
+                }
+            }
+
+            if (lastEventCallback == null) return;
+            Core.RunContinuation(lastEventCallback, lastState, @event);
         }
     }
 

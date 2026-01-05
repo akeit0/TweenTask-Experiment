@@ -10,8 +10,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
     public TweenSequenceItem[] SequenceItems = null!;
 
     public int SequenceItemCount;
-    public double LatestTime;
-
+    public int BuiltCount;
     static TaskPool<TweenSequencePromise> _pool;
 
     private TweenSequencePromise? next;
@@ -27,6 +26,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             promise = new TweenSequencePromise();
         }
 
+        promise.BuiltCount = 0;
         promise.SequenceItems = items;
         promise.SequenceItemCount = count;
         promise.Delay = delay;
@@ -42,7 +42,6 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         if (endCallback != null) promise.Core.HaveEvent = true;
         promise.Time = 0;
         token = promise.Core.Version;
-        promise.LatestTime = -1;
         return promise;
     }
 
@@ -96,20 +95,27 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
 
         position = easedValue * Duration;
 
-        foreach (ref var sequenceItem in SequenceItems.AsSpan(0, SequenceItemCount))
+        var span = SequenceItems.AsSpan(0, SequenceItemCount);
+        for (var index = 0; index < span.Length; index++)
         {
+            ref var sequenceItem = ref span[index];
             if (PlaybackSpeed > 0 && sequenceItem.Position > position)
             {
                 break;
             }
 
-            if (sequenceItem.Position > LatestTime)
+            if (sequenceItem.Position <= position)
             {
-                var t = (sequenceItem.Promise).CreatePromise(out _);
-                t.IsPreserved = true;
-                sequenceItem.Promise = Unsafe.As<ITweenBuilderBuffer>(t);
+                if (BuiltCount <= index)
+                {
+                    var t = (sequenceItem.Promise).CreatePromise(out _);
+                    t.IsPreserved = true;
+                    sequenceItem.Promise = Unsafe.As<ITweenBuilderBuffer>(t);
+                    BuiltCount++;
+                }
             }
 
+            if (BuiltCount <= index) continue;
             try
             {
 #if DEBUG
@@ -128,7 +134,6 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             }
         }
 
-        LatestTime = Math.Max(LatestTime, position);
         if (IsPreserved) return true;
         if (progress < 1) return true;
         if (Core.IsPreserved) return true;

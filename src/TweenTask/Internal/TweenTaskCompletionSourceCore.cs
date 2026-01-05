@@ -428,6 +428,44 @@ public struct TweenTaskCompletionSourceLightCore
 
     /// <summary>Completes with a successful result.</summary>
     [DebuggerHidden]
+    public bool TrySet()
+    {
+        ref var flagRef = ref Unsafe.As<TweenTaskCompletionLightSourceFlags, int>(ref flags);
+        var flagVal = flagRef;
+        while (Interlocked.CompareExchange(ref flagRef, flagVal | (int)TweenTaskCompletionLightSourceFlags.Done,
+                   flagVal) != flagVal)
+        {
+            flagVal = flagRef;
+            if ((flagRef & (int)TweenTaskCompletionLightSourceFlags.Done) != 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    public void SetCanceledException(CancellationToken cancellationToken)
+    {
+        flags |= TweenTaskCompletionLightSourceFlags.HasHandledError;
+        error = cancellationToken == CancellationToken.None
+            ? defaultCancelledException
+            : new OperationCanceledException(cancellationToken);
+    }
+
+    public void RunContinuation(Action<object?, TweenEvent>? continuation, object continuationState,
+        TweenEvent tweenEvent)
+    {
+        if (HaveEvent)
+        {
+            continuation!(continuationState, tweenEvent);
+        }
+        else
+        {
+            Unsafe.As<Action<object>>(continuation!)(continuationState);
+        }
+    }
+
+    /// <summary>Completes with a successful result.</summary>
+    [DebuggerHidden]
     public bool TrySetResult(ref Action<object?, TweenEvent>? continuation, ref object continuationState,
         TweenEvent tweenEvent)
     {
@@ -472,6 +510,7 @@ public struct TweenTaskCompletionSourceLightCore
             if ((flagRef & (int)TweenTaskCompletionLightSourceFlags.Done) != 0)
                 return false;
         }
+
 
         flags |= TweenTaskCompletionLightSourceFlags.HasHandledError;
         error = cancellationToken == CancellationToken.None
