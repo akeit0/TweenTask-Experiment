@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
@@ -59,7 +58,7 @@ internal struct TweenTaskFlags(int flags)
 }
 
 [StructLayout(LayoutKind.Auto)]
-internal struct TweenTaskCompletionSourceLightCore
+public struct TweenTaskCompletionSourceLightCore
 {
     private object? error; // ExceptionHolder or OperationCanceledException
     internal TweenTaskFlags Flags;
@@ -165,7 +164,7 @@ internal struct TweenTaskCompletionSourceLightCore
             : new OperationCanceledException(cancellationToken);
     }
 
-    public void RunContinuation(Action<object?, TweenEvent>? continuation, object continuationState,
+    public void RunContinuation(Action<object?, TweenEvent> continuation, object? continuationState,
         TweenEvent tweenEvent)
     {
         if (HaveEvent)
@@ -174,7 +173,7 @@ internal struct TweenTaskCompletionSourceLightCore
         }
         else
         {
-            Unsafe.As<Action<object>>(continuation!)(continuationState);
+            Unsafe.As<Action<object>>(continuation)(continuationState!);
         }
     }
 
@@ -334,7 +333,7 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
         return wrapper;
     }
 
-    public static Action<object?, TweenEvent> RunAction = static (w, e) => Unsafe.As<LightCallBackWrapper>(w).Run(e);
+    public static readonly Action<object?, TweenEvent> RunAction = static (w, e) => Unsafe.As<LightCallBackWrapper>(w).Run(e);
 
     public void Run(TweenEvent tweenEvent)
     {

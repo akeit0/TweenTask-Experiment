@@ -2,9 +2,9 @@
 
 using TweenTasks;
 
-using var provider = new TimerDeltaTimeProvider(TimeSpan.FromSeconds(0.30));
-TweenSystem.DefaultDeltaTimeProvider = provider;
-using var provider2 = new TimerDeltaTimeProvider(TimeSpan.FromSeconds(0.10));
+using var provider = new TimerFrameDeltaTimeProvider(TimeSpan.FromSeconds(0.30));
+TweenSystem.DefaultFrameDeltaTimeProvider = provider;
+using var provider2 = new TimerFrameDeltaTimeProvider(TimeSpan.FromSeconds(0.10));
 var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2.5));
 try
 {
@@ -14,17 +14,17 @@ try
                 Console.WriteLine($"progress 1:{d:f2}");
             }
         ).WithEase(Ease.OutCirc)
-        .WithOnEnd(result => Console.WriteLine("Progress 1 Complete " + result)).Schedule();
+        .WithOnEvent(result => Console.WriteLine("Progress 1 Complete " + result)).Schedule();
 
     TweenTask.Create(0, 3, 1).Bind(
         static d => { Console.WriteLine($"progress 2:{d / 3:f2}"); },
-        cts.Token).WithDeltaTimeProvider(provider2)
-        .WithOnEnd(result => Console.WriteLine("Progress 2 Complete " + result)).Schedule().Forget();
+        cts.Token)
+        .WithOnEvent(result => Console.WriteLine("Progress 2 Complete " + result)).Schedule(provider2).Forget();
 
     TweenTask.Create(0, 1, 1).Bind(
             static d => { Console.WriteLine($"progress 3:{d:f2}"); },
             cts.Token)
-        .WithOnEnd(result => Console.WriteLine("Progress 3 Complete " + result)).Schedule().Forget();
+        .WithOnEvent(result => Console.WriteLine("Progress 3 Complete " + result)).Schedule().Forget();
 
     var t4 = TweenTask.Create(0, 1, 2 - 0.01).Bind(provider,
         static (provider, d) => { Console.WriteLine($"progress 4:{d:f2}"); },

@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
@@ -11,6 +9,8 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
 {
     protected CancellationToken CancellationToken;
     protected TweenTaskCompletionSourceLightCore Core;
+    protected Action<object?, TweenEvent>? EventCallback;
+    protected object? EventState;
     protected double Delay;
     protected double Duration;
     protected int LoopCount;
@@ -20,19 +20,13 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     protected object? State;
     public double Time;
 
-    protected Action<object?, TweenEvent>? EventCallback;
-    protected object? EventState;
-
     public bool IsPreserved
     {
         get => Core.IsPreserved;
         set => Core.IsPreserved = value;
     }
 
-    public virtual void SetTime(double time)
-    {
-        Time = time;
-    }
+    public abstract void SetTime(double time);
 
     public short Version => Core.Version;
 
@@ -48,7 +42,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         }
     }
 
-    protected void ReturnWithContinuation(TweenEvent @event)
+    protected void ReturnWithContinuation(TweenEvent tweenEvent)
     {
         var lastEventCallback = EventCallback;
 
@@ -56,20 +50,30 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         {
             var lastState = EventState;
 
-            if (lastEventCallback == null || (lastEventCallback != LightCallBackWrapper.RunAction && Core.HaveEvent))
+            var hasEvent = Core.HaveEvent;
+            if (lastEventCallback == null || (lastEventCallback != LightCallBackWrapper.RunAction && hasEvent))
             {
                 TryReturn();
             }
             else
             {
-                if (@event.EventType == TweenEventType.Cancel)
+                if (tweenEvent.EventType == TweenEventType.Cancel)
                 {
-                    Core.SetCanceledException(CancellationToken.IsCancellationRequested ? CancellationToken : default);
+                    Core.SetCanceledException(CancellationToken.IsCancellationRequested
+                        ? CancellationToken
+                        : CancellationToken.None);
                 }
             }
 
             if (lastEventCallback == null) return;
-            Core.RunContinuation(lastEventCallback, lastState, @event);
+            if (hasEvent)
+            {
+                lastEventCallback!(lastState, tweenEvent);
+            }
+            else
+            {
+                Unsafe.As<Action<object>>(lastEventCallback)(lastState!);
+            }
         }
     }
 
@@ -84,7 +88,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         try
         {
             Core.OnCompleted(continuation, state, token,
-                ref Unsafe.As<Action<object, TweenEvent>, Action<object>>(ref EventCallback), ref EventState);
+                ref Unsafe.As<Action<object?, TweenEvent>?, Action<object>?>(ref EventCallback), ref EventState);
         }
         catch (Exception e)
         {
@@ -99,218 +103,9 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         if (Core.Version != token) return false;
         Core.Deactivate();
         ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
-
-
         return true;
     }
 
 
     public abstract bool TryReturn();
-}
-
-internal static class TweenMath
-{
-    public static double CalculateProgress(double progress, int loopCount,
-        LoopType loopType, Ease ease)
-    {
-        var offset = 0.0;
-        var factor = 1.0;
-        if (loopCount > 1 && progress >= 1)
-        {
-            var currentLoop = (int)(progress);
-            var loopProgress = progress - currentLoop;
-            if (currentLoop % 2 == 1 && loopType is LoopType.Yoyo or LoopType.Flip)
-            {
-                if (loopType == LoopType.Flip)
-                {
-                    offset = 1;
-                    factor = -1;
-                    progress = loopProgress;
-                }
-                else
-                {
-                    progress = 1 - loopProgress;
-                }
-            }
-            else
-            {
-                progress = loopProgress;
-                if (loopType == LoopType.Incremental)
-                {
-                    offset = currentLoop * 1; //EaseUtility.Evaluate(1, ease);
-                }
-            }
-        }
-
-        return offset + factor * EaseUtility.Evaluate(Math.Clamp(progress, 0, 1), ease);
-    }
-}
-
-internal class Promise<T, TAdapter> : TweenPromise, IDeltaTimeProviderWorkItem,
-    ITaskPoolNode<Promise<T, TAdapter>>
-    where TAdapter : ITweenAdapter<T>
-{
-    private static TaskPool<Promise<T, TAdapter>> pool;
-    private Action<object?, T>? action;
-    private TAdapter adapter = default!;
-
-    private Promise<T, TAdapter>? next;
-    ref Promise<T, TAdapter>? ITaskPoolNode<Promise<T, TAdapter>>.NextNode => ref next;
-
-
-    public static Promise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, int loopCount,
-        LoopType loopType, Ease ease,
-        TAdapter adapter,
-        Action<object?, T>? action, object? state, Action<object?, TweenEvent>? endCallback, object? endState,
-        CancellationToken cancellationToken, out short token)
-    {
-        if (!pool.TryPop(out var promise))
-        {
-            promise = new();
-        }
-
-        promise.Delay = delay;
-        promise.Duration = duration;
-        promise.LoopCount = loopCount;
-        promise.LoopType = loopType;
-        promise.PlaybackSpeed = playBackSpeed;
-        promise.Ease = ease;
-        promise.action = action;
-        promise.State = state;
-        promise.EventCallback = endCallback;
-        promise.EventState = endState;
-        promise.adapter = adapter;
-        promise.CancellationToken = cancellationToken;
-        promise.Core.Activate();
-
-        if (endCallback != null) promise.Core.HaveEvent = true;
-        promise.Time = 0;
-        token = promise.Core.Version;
-        return promise;
-    }
-
-    public override void SetTime(double time)
-    {
-        var lastTime = Time;
-        Time = time;
-        var position = time - Delay;
-        var progress = position / Duration;
-        if (CancellationToken.IsCancellationRequested)
-        {
-            ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
-
-            return;
-        }
-
-        if (Delay > time)
-        {
-            if (Delay > lastTime)
-            {
-                return;
-            }
-        }
-
-        var totalProgress = progress / LoopCount;
-
-        if (totalProgress > 1)
-        {
-            if ((lastTime - Delay) / LoopCount > Duration)
-            {
-                return;
-            }
-        }
-
-        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
-
-        try
-        {
-            action?.Invoke(State, adapter.Evaluate(easedValue));
-        }
-        catch (Exception e)
-        {
-            TweenSystem.GetUnhandledExceptionHandler()(e);
-        }
-
-        if (totalProgress < 1) return;
-
-        if (!Core.IsPreserved)
-            ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
-
-        return;
-    }
-
-    public bool MoveNext(double deltaTime)
-    {
-        if (!Core.IsActive) return false;
-
-        Time += PlaybackSpeed * deltaTime;
-        var position = Time - Delay;
-        var progress = position / Duration;
-        if (CancellationToken.IsCancellationRequested)
-        {
-            ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
-
-            return false;
-        }
-
-        if (Delay > Time)
-        {
-            if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ApplyValuesDuringDelay))
-            {
-                progress = 0;
-            }
-            else
-            {
-                return true;
-            }
-        }
-
-        var totalProgress = progress / LoopCount;
-        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
-
-        try
-        {
-            action?.Invoke(State, adapter.Evaluate(easedValue));
-        }
-        catch (Exception e)
-        {
-            TweenSystem.GetUnhandledExceptionHandler()(e);
-            if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.CancelOnError))
-            {
-                ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
-
-                return false;
-            }
-        }
-
-        if (totalProgress < 1) return true;
-
-        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
-
-        return false;
-    }
-
-
-    public override bool TryComplete(short token)
-    {
-        if (Core.Version != token) return false;
-        action?.Invoke(State, adapter.Evaluate(EaseUtility.Evaluate(1, Ease)));
-        ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
-
-        return true;
-    }
-
-    public override bool TryReturn()
-    {
-        if (Core.IsPreserved) return false;
-        Debug.Assert(next == null);
-        Core.Reset();
-        EventCallback = null;
-        EventState = null;
-        adapter = default!;
-        action = null;
-        State = null;
-        CancellationToken = CancellationToken.None;
-        return pool.TryPush(this);
-    }
 }

@@ -12,4 +12,5 @@ public enum TweenEventType : byte
 
 public readonly record struct TweenEvent(TweenEventType EventType, int CompletedLoops = 0, Exception? Exception = null)
 {
+    public bool IsEnd => EventType is TweenEventType.Complete or TweenEventType.Cancel;
 }

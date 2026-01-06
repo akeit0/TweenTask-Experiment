@@ -3,29 +3,30 @@ using System.Threading;
 
 namespace TweenTasks;
 
-public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
+public sealed class TimerFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDisposable
 {
     private static readonly TimerCallback TimerCallback = Run;
 
     private readonly object gate = new();
     private readonly long startTimeStamp;
+    long frameCount;
     private readonly TimeProvider timeProvider;
     private readonly ITimer timer;
     private double currentTime;
     private bool disposed;
-    private FreeListCore<IDeltaTimeProviderWorkItem> list;
+    private FreeListCore<IFrameDeltaTimeProviderWorkItem> list;
 
-    public TimerDeltaTimeProvider(TimeSpan period)
+    public TimerFrameDeltaTimeProvider(TimeSpan period)
         : this(period, period, TimeProvider.System)
     {
     }
 
-    public TimerDeltaTimeProvider(TimeSpan dueTime, TimeSpan period)
+    public TimerFrameDeltaTimeProvider(TimeSpan dueTime, TimeSpan period)
         : this(dueTime, period, TimeProvider.System)
     {
     }
 
-    public TimerDeltaTimeProvider(TimeSpan dueTime, TimeSpan period, TimeProvider timeProvider)
+    public TimerFrameDeltaTimeProvider(TimeSpan dueTime, TimeSpan period, TimeProvider timeProvider)
     {
         list = new(gate);
         timer = timeProvider.CreateStoppedTimer(TimerCallback, this);
@@ -50,15 +51,20 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
         }
     }
 
-    public  override void Register(IDeltaTimeProviderWorkItem callback)
+    public override long GetFrameCount()
     {
-        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerDeltaTimeProvider));
+        return frameCount;
+    }
+
+    public override void Register(IFrameDeltaTimeProviderWorkItem callback, bool forceNextFrame = true)
+    {
+        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerFrameDeltaTimeProvider));
         list.Add(callback, out _);
     }
 
     private static void Run(object? state)
     {
-        var self = (TimerDeltaTimeProvider)state!;
+        var self = (TimerFrameDeltaTimeProvider)state!;
         if (self.disposed) return;
 
         lock (self.gate)
@@ -66,6 +72,7 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
             var last = self.currentTime;
             self.currentTime = self.timeProvider.GetElapsedTime(self.startTimeStamp).TotalSeconds;
             var delta = self.currentTime - last;
+            var info = new FrameInfo(self.frameCount, delta);
             var span = self.list.AsSpan();
             for (var i = 0; i < span.Length; i++)
             {
@@ -73,7 +80,7 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
                 if (item != null)
                     try
                     {
-                        if (!item.MoveNext(delta)) self.list.Remove(i);
+                        if (!item.MoveNext(info)) self.list.Remove(i);
                     }
                     catch (Exception ex)
                     {
@@ -87,6 +94,8 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
                         }
                     }
             }
+
+            self.frameCount++;
         }
     }
 }

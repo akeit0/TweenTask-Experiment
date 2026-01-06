@@ -1,6 +1,5 @@
 using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.Threading;
 using TweenTasks.Internal;
 
@@ -45,7 +44,13 @@ public readonly struct TweenSequenceBuilder
     public TweenTask Schedule(CancellationToken cancellationToken = default)
     {
         Validate();
-        return buffer.Schedule(cancellationToken);
+        return buffer.Schedule(TweenSystem.DefaultFrameDeltaTimeProvider,cancellationToken);
+    }
+    
+    public TweenTask Schedule(FrameDeltaTimeProvider provider,CancellationToken cancellationToken = default)
+    {
+        Validate();
+        return buffer.Schedule(provider,cancellationToken);
     }
 
     public void Validate()
@@ -108,7 +113,7 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
         Duration = Math.Max(Duration, position + buffer.TotalDuration);
     }
 
-    public TweenTask Schedule(CancellationToken cancellationToken = default)
+    public TweenTask Schedule(FrameDeltaTimeProvider provider,CancellationToken cancellationToken = default)
     {
         TweensBuffer ??= [];
         Array.Sort(TweensBuffer, 0, TweenCount);
@@ -117,7 +122,7 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
             OnEndAction,
             EndState,
             cancellationToken, out var token);
-        TweenSystem.DefaultDeltaTimeProvider.Register(promise);
+        provider.Register(promise);
         TryReturn();
         return new TweenTask(promise, token);
     }

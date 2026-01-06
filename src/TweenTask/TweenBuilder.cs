@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using TweenTasks.Internal;
 
 namespace TweenTasks;
 
@@ -131,11 +130,11 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
         Schedule();
     }
 
-    public TweenTask Schedule()
+    public TweenTask Schedule(FrameDeltaTimeProvider? provider = null)
     {
-        var provider = Buffer.DeltaTimeProvider ?? TweenSystem.DefaultDeltaTimeProvider;
+        provider ??= TweenSystem.DefaultFrameDeltaTimeProvider;
         var t = Build();
-        provider.Register((IDeltaTimeProviderWorkItem)t.Promise);
+        provider.Register((IFrameDeltaTimeProviderWorkItem)t.Promise, true);
         return t;
     }
 

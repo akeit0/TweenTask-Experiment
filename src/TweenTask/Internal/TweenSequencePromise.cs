@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace TweenTasks.Internal;
 
-internal class SequencePromise : TweenPromise, IDeltaTimeProviderWorkItem, ITaskPoolNode<SequencePromise>
+internal class SequencePromise : TweenPromise, IFrameDeltaTimeProviderWorkItem, ITaskPoolNode<SequencePromise>
 {
     public TweenSequenceItem[] SequenceItems = null!;
 
@@ -46,6 +46,11 @@ internal class SequencePromise : TweenPromise, IDeltaTimeProviderWorkItem, ITask
         return promise;
     }
 
+    public override void SetTime(double time)
+    {
+        throw new NotImplementedException();
+    }
+
     public override bool TryComplete(short token)
     {
         if (Core.Version != token) return false;
@@ -77,9 +82,11 @@ internal class SequencePromise : TweenPromise, IDeltaTimeProviderWorkItem, ITask
         return true;
     }
 
-    public bool MoveNext(double deltaTime)
+    public bool MoveNext(FrameInfo frameInfo)
     {
         if (!Core.IsActive) return false;
+
+        var deltaTime = frameInfo.DeltaTime;
         Time += PlaybackSpeed * deltaTime;
         Time = Math.Clamp(Time, 0, Delay + Duration);
         var position = Time - Delay;

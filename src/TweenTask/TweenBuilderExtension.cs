@@ -18,13 +18,6 @@ public static class TweenBuilderExtension
             return builder;
         }
 
-        public TweenBuilder<TValue, TAdapter> WithDeltaTimeProvider(DeltaTimeProvider provider)
-        {
-            builder.Validate();
-            builder.Buffer.DeltaTimeProvider = provider;
-            return builder;
-        }
-
         public TweenBuilder<TValue, TAdapter> WithLoop(int loopCount, LoopType loopType = LoopType.Restart)
         {
             builder.Validate();
@@ -33,7 +26,7 @@ public static class TweenBuilderExtension
             return builder;
         }
 
-        public TweenBuilder<TValue, TAdapter> WithOnEnd<TState>(TState state,
+        public TweenBuilder<TValue, TAdapter> WithOnEvent<TState>(TState state,
             Action<TState, TweenEvent> callback) where TState : class
         {
             builder.Validate();
@@ -42,7 +35,7 @@ public static class TweenBuilderExtension
             return builder;
         }
 
-        public TweenBuilder<TValue, TAdapter> WithOnEnd(Action<TweenEvent> callback)
+        public TweenBuilder<TValue, TAdapter> WithOnEvent(Action<TweenEvent> callback)
         {
             builder.Validate();
             builder.Buffer.OnEndState = callback;

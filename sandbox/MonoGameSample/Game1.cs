@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using TweenTasks;
+using TweenTasks.Internal;
 
 namespace MonoGameSample;
 
@@ -19,7 +21,7 @@ public class Game1 : Game
     private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
     private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
 
-    private ManualDeltaTimeProvider? provider;
+    private readonly ManualFrameDeltaTimeProvider provider = new(0);
     private SpriteBatch spriteBatch;
 
     private AudioSource soundFx;
@@ -79,11 +81,8 @@ public class Game1 : Game
 
     protected override void BeginRun()
     {
-        if (provider == null)
-        {
-            provider = new(0);
-            TweenSystem.DefaultDeltaTimeProvider = provider;
-        }
+        TweenSystem.DefaultFrameDeltaTimeProvider = provider;
+
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
@@ -117,11 +116,11 @@ public class Game1 : Game
 
         seqTask = TweenSequence.Create()
             .Append(seqObject.TweenPositionTo(new Vector2(100, 0), 0.5)
-                .WithRelative().WithLoop(2,LoopType.Incremental).WithEase(Ease.OutBounce))
+                .WithRelative().WithLoop(2, LoopType.Incremental).WithEase(Ease.OutBounce))
             .Append(seqObject.TweenPositionTo(new Vector2(0, 100), 0.5)
-                .WithRelative().WithLoop(3,LoopType.Yoyo).WithEase(Ease.InCirc))
+                .WithRelative().WithLoop(3, LoopType.Yoyo).WithEase(Ease.InCirc))
             .Append(seqObject.TweenPositionTo(new Vector2(-100, 0), 0.5)
-                .WithRelative().WithLoop(3,LoopType.Flip).WithEase(Ease.InCirc))
+                .WithRelative().WithLoop(3, LoopType.Flip).WithEase(Ease.InCirc))
             .Join(seqObject.TweenRotationTo(0, 0.5))
             .Append(seqObject.TweenPositionTo(center, 0.5))
             .Join(seqObject.TweenRotationTo(-1 * MathF.PI, 1))
@@ -186,13 +185,16 @@ public class Game1 : Game
         return new(r, g, b);
     }
 
+
     protected override void Update(GameTime gameTime)
     {
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
         UpdateKeyStates();
-        provider!.Run(gameTime.ElapsedGameTime.TotalSeconds);
+        provider.IncrementFrameCount();
+        provider.Run(gameTime.ElapsedGameTime.TotalSeconds);
+
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
@@ -216,9 +218,9 @@ public class Game1 : Game
                     .WithRelative()
                     .WithEase(Ease.InBounce)
                     .WithCancellationToken(newObj.CancellationToken)
-                    .WithOnEnd(this, static (o, result) =>
+                    .WithOnEvent(this, static (o, result) =>
                     {
-                        o.MoveTweenCount--;
+                        if (result.IsEnd) o.MoveTweenCount--;
                         switch (result.EventType)
                         {
                             case TweenEventType.Complete:
@@ -267,28 +269,30 @@ public class Game1 : Game
                 spriteObjects.Add(newObj);
 
                 TweenSequence.Create()
-                    .Append(newObj.TweenRotationTo(MathF.PI * 2, 1))
-                    .Append(newObj.TweenPositionTo(new Vector2(100, 0), 1).WithRelative())
-                    .Append(newObj.TweenPositionTo(new Vector2(0, 100), 1).WithRelative())
+                    .Append(newObj.TweenRotationTo(MathF.PI * 4, 1.8))
+                    .Join(newObj.TweenPositionTo(new Vector2(0, 100), 0.3).WithRelative()
+                        .WithLoop(6, LoopType.Yoyo)
+                        .WithEase(Ease.InExpo)
+                        .WithOnEvent(this,
+                            static (o, result) =>
+                            {
+                                if (result.EventType == TweenEventType.LoopComplete)
+                                {
+                                    if (result.CompletedLoops % 2 == 1)
+                                        o.soundFx.PlayWave(440 * MathF.Pow(2, (result.CompletedLoops - 1) / 12f), 400,
+                                            WaveType.Sin,
+                                            0.3f);
+                                }
+                            }))
+                    .Append(newObj.TweenPositionTo(new Vector2(100, 0), 0.5).WithRelative())
                     .WithOnEvent(this,
                         static (o, result) =>
                         {
-                            o.MoveTweenCount--;
-                            switch (result.EventType)
+                            if (result.IsEnd) o.MoveTweenCount--;
+                            if (result.EventType == TweenEventType.Cancel)
                             {
-                                case TweenEventType.Complete:
-                                {
-                                    o.soundFx.PlayWave(440 * MathF.Pow(2, o.rand.NextSingle() - 0.5f), 50,
-                                        WaveType.Square,
-                                        0.3f);
-                                }
-                                    break;
-                                case TweenEventType.Cancel:
-                                {
-                                    o.soundFx.PlayWave(0, 100, WaveType.Noise,
-                                        0.1f);
-                                }
-                                    break;
+                                o.soundFx.PlayWave(0, 100, WaveType.Noise,
+                                    0.1f);
                             }
                         }).Schedule(newObj.CancellationToken);
 
@@ -347,13 +351,13 @@ public class Game1 : Game
             {
                 obj.TweenRotationTo(MathF.PI * 4, 2).WithEase(Ease.InOutCubic).Run();
                 await obj.TweenSizeTo(0, 2).WithEase(Ease.Linear)
-                    .WithOnEnd(this, (game, result) =>
+                    .WithOnEvent(this, (game, result) =>
                     {
                         if (result.EventType == TweenEventType.Complete)
                         {
                             game.DeletingCount--;
                         }
-                        else
+                        else if (result.EventType == TweenEventType.Cancel)
                         {
                             Console.WriteLine("Failed to delete");
                         }

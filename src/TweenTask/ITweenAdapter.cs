@@ -1,5 +1,3 @@
-using System;
-
 namespace TweenTasks;
 
 public interface ITweenAdapter<in TOption,  T> : ITweenAdapter<T>
