@@ -103,6 +103,7 @@ public class Game1 : Game
 
     void CreateSeq()
     {
+        return;
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
         seqObject = new SimpleSpriteObject(Texture)
@@ -214,7 +215,7 @@ public class Game1 : Game
                 spriteObjects.Add(newObj);
 
                 newObj.TweenPositionTo(200 * new Vector2(rand.NextSingle() - 0.5f, rand.NextSingle() - 0.5f),
-                        1 + rand.NextSingle())
+                        0.5 + 0.5 * rand.NextSingle())
                     .WithRelative()
                     .WithEase(Ease.InBounce)
                     .WithCancellationToken(newObj.CancellationToken)
@@ -269,15 +270,17 @@ public class Game1 : Game
                 spriteObjects.Add(newObj);
 
                 TweenSequence.Create()
-                    .Append(newObj.TweenRotationTo(MathF.PI * 4, 1.8))
-                    .Join(newObj.TweenPositionTo(new Vector2(0, 100), 0.3).WithRelative()
-                        .WithLoop(6, LoopType.Yoyo)
+                    .Append(newObj.TweenRotationTo(MathF.PI, 0.2))
+                    .Append(newObj.TweenPositionTo(new Vector2(0, 100), 0.3).WithRelative()
+                        .WithLoop(6, LoopType.Flip).WithDelay(0.1, DelayType.EveryLoop)
                         .WithEase(Ease.InExpo)
                         .WithOnEvent(this,
                             static (o, result) =>
                             {
+                               
                                 if (result.EventType == TweenEventType.LoopComplete)
                                 {
+                                    Console.WriteLine(result.CompletedLoops);
                                     if (result.CompletedLoops % 2 == 1)
                                         o.soundFx.PlayWave(440 * MathF.Pow(2, (result.CompletedLoops - 1) / 12f), 400,
                                             WaveType.Sin,

@@ -59,9 +59,14 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
             {
                 if (tweenEvent.EventType == TweenEventType.Cancel)
                 {
-                    Core.SetCanceledException(CancellationToken.IsCancellationRequested
-                        ? CancellationToken
-                        : CancellationToken.None);
+                    var token = CancellationToken;
+                    if (token.IsCancellationRequested ||
+                        Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ThrowOnManuallyCanceled))
+                    {
+                        Core.SetCanceledException(token.IsCancellationRequested
+                            ? token
+                            : CancellationToken.None);
+                    }
                 }
             }
 

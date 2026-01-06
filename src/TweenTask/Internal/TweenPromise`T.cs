@@ -1,10 +1,8 @@
-
 using System;
 using System.Diagnostics;
 using System.Threading;
 
 namespace TweenTasks.Internal;
-
 
 internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProviderWorkItem,
     ITaskPoolNode<TweenPromise<T, TAdapter>>
@@ -22,7 +20,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         LoopType loopType, Ease ease,
         TAdapter adapter,
         Action<object?, T>? action, object? state, Action<object?, TweenEvent>? endCallback, object? endState,
-        CancellationToken cancellationToken, out short token)
+        CancellationToken cancellationToken, TweenTaskSettingFlags flags, out short token)
     {
         if (!pool.TryPop(out var promise))
         {
@@ -41,6 +39,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         promise.EventState = endState;
         promise.adapter = adapter;
         promise.CancellationToken = cancellationToken;
+        promise.Core.Flags = new TweenTaskFlagsWrapper((int)flags);
         promise.Core.Activate();
 
         if (endCallback != null) promise.Core.HaveEvent = true;
@@ -49,12 +48,22 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         return promise;
     }
 
+    public static double TotalDuration(double delay, double duration, int loopCount, TweenTaskFlagsWrapper flags)
+    {
+        if (flags.HasFlags(TweenTaskCompletionLightSourceFlags.DelayEveryLoop))
+        {
+            return delay * loopCount + duration * loopCount;
+        }
+        else
+        {
+            return delay + duration * loopCount;
+        }
+    }
+
     public override void SetTime(double time)
     {
         var lastTime = Time;
         Time = time;
-        var position = time - Delay;
-        var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
             ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
@@ -62,25 +71,67 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
             return;
         }
 
-        if (Delay > time)
+        var delayEveryLoop = Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.DelayEveryLoop);
+
+        var position = Time;
+        var perLoopDuration = Duration;
+        var perLoopDelay = Delay;
+        if (!delayEveryLoop)
         {
-            if (Delay > lastTime)
+            perLoopDelay = 0;
+            position -= Delay;
+        }
+
+        perLoopDuration += perLoopDelay;
+
+
+        var progress = position / (perLoopDuration);
+        var currentLoopCount = (Math.Max(0, (int)progress));
+
+        var lastPosition = lastTime;
+        if (!delayEveryLoop)
+        {
+            lastPosition -= Delay;
+        }
+
+        var lastLoopCount = (int)(Math.Max(0, lastPosition) / perLoopDuration);
+        var isComplete = false;
+        if (currentLoopCount >= LoopCount)
+        {
+            isComplete = true;
+            if (lastLoopCount >= LoopCount)
             {
                 return;
             }
         }
 
-        var totalProgress = progress / LoopCount;
-
-        if (totalProgress > 1)
+        var perLoopProgress = (position - (currentLoopCount * perLoopDuration) - perLoopDelay) / perLoopDuration;
+        if (delayEveryLoop)
         {
-            if ((lastTime - Delay) / LoopCount > Duration)
+            perLoopProgress *= ((perLoopDuration) / Duration);
+        }
+
+        if (isComplete)
+        {
+            perLoopProgress = 1;
+        }
+
+        if (perLoopProgress < 0)
+        {
+            if (currentLoopCount != lastLoopCount ||
+                Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ApplyValuesDuringDelay))
+            {
+                perLoopProgress = 0;
+            }
+            else
             {
                 return;
             }
         }
 
-        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
+
+        double easedValue =
+            TweenMath.CalculateProgress(perLoopProgress, currentLoopCount - (isComplete ? 1 : 0), LoopType, Ease);
 
         try
         {
@@ -95,22 +146,18 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         var lastEventCallback = EventCallback;
         if (lastEventCallback != null && Core.HaveEvent)
         {
-            var lastLoopCount = (int)((lastTime - Delay) / Duration);
-            var currentLoopCount = (int)(progress);
-
             while (lastLoopCount < currentLoopCount)
             {
                 lastLoopCount++;
-                lastEventCallback(EventState, new TweenEvent(TweenEventType.LoopComplete, lastLoopCount));
+                lastEventCallback(EventState, new TweenEvent(TweenEventType.LoopComplete, lastLoopCount, LoopCount));
             }
         }
 
-        if (totalProgress < 1)
-            return;
+        if (!isComplete) return;
 
 
         if (!Core.IsPreserved)
-            ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
+            ReturnWithContinuation(new TweenEvent(TweenEventType.Complete, currentLoopCount, LoopCount));
 
         return;
     }
@@ -121,8 +168,6 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         var lastTime = Time;
         var deltaTime = frameInfo.DeltaTime;
         Time += PlaybackSpeed * deltaTime;
-        var position = Time - Delay;
-        var progress = position / Duration;
         if (CancellationToken.IsCancellationRequested)
         {
             ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
@@ -130,11 +175,49 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
             return false;
         }
 
-        if (Delay > Time)
+        var delayEveryLoop = Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.DelayEveryLoop);
+
+        var position = Time;
+        var perLoopDuration = Duration;
+        var perLoopDelay = Delay;
+        if (!delayEveryLoop)
         {
-            if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ApplyValuesDuringDelay))
+            perLoopDelay = 0;
+            position -= Delay;
+        }
+
+        perLoopDuration += perLoopDelay;
+
+
+        var progress = position / (perLoopDuration);
+        var currentLoopCount = (Math.Max(0, (int)progress));
+
+        var lastPosition = lastTime;
+        if (!delayEveryLoop)
+        {
+            lastPosition -= Delay;
+        }
+
+        var lastLoopCount = (int)(Math.Max(0, lastPosition) / perLoopDuration);
+        var isComplete = currentLoopCount >= LoopCount;
+
+        var perLoopProgress = (position - (currentLoopCount * perLoopDuration) - perLoopDelay) / perLoopDuration;
+        if (delayEveryLoop)
+        {
+            perLoopProgress *= ((perLoopDuration) / Duration);
+        }
+
+        if (isComplete)
+        {
+            perLoopProgress = 1;
+        }
+
+        if (perLoopProgress < 0)
+        {
+            if (currentLoopCount != lastLoopCount ||
+                Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ApplyValuesDuringDelay))
             {
-                progress = 0;
+                perLoopProgress = 0;
             }
             else
             {
@@ -142,8 +225,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
             }
         }
 
-        var totalProgress = progress / LoopCount;
-        double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
+        double easedValue = TweenMath.CalculateProgress(perLoopProgress, currentLoopCount, LoopType, Ease);
 
         try
         {
@@ -163,9 +245,6 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         var lastEventCallback = EventCallback;
         if (lastEventCallback != null && Core.HaveEvent)
         {
-            var lastLoopCount = (int)((lastTime - Delay) / Duration);
-            var currentLoopCount = (int)(progress);
-
             while (lastLoopCount < currentLoopCount)
             {
                 lastLoopCount++;
@@ -173,7 +252,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
             }
         }
 
-        if (totalProgress < 1) return true;
+        if (currentLoopCount < LoopCount) return true;
 
         ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
 

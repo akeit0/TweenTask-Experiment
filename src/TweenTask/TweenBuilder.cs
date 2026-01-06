@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using TweenTasks.Internal;
 
 namespace TweenTasks;
 
@@ -101,7 +102,7 @@ public static class TweenBuilder
         public TweenBuilder<TValue, TAdapter> WithRelative()
         {
             builder.Validate();
-            builder.Buffer.IsRelative = true;
+            builder.Buffer.Flags.SetFlags(TweenTaskSettingFlags.IsRelative);
             return builder;
         }
     }

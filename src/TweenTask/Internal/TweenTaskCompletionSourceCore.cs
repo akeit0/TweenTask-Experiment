@@ -8,6 +8,19 @@ using System.Threading.Tasks.Sources;
 namespace TweenTasks.Internal;
 
 [Flags]
+internal enum TweenTaskSettingFlags
+{
+    None = 0,
+    Preserved = 1,
+    ApplyValuesDuringDelay = Preserved << 1,
+    DelayEveryLoop = ApplyValuesDuringDelay << 1,
+    CancelOnError = DelayEveryLoop << 1,
+    ThrowOnManuallyCanceled = CancelOnError << 1,
+    ThrowBindActionException = ThrowOnManuallyCanceled << 1,
+    IsRelative,
+}
+
+[Flags]
 internal enum TweenTaskCompletionLightSourceFlags
 {
     None = 0,
@@ -23,7 +36,46 @@ internal enum TweenTaskCompletionLightSourceFlags
     HasHandledError = Done << 1,
 }
 
-internal struct TweenTaskFlags(int flags)
+internal struct TweenTaskSettingFlagsWrapper(int flags)
+{
+    public int Flags = flags;
+
+    public bool TrySetFlags(TweenTaskSettingFlags setFlags)
+    {
+        int oldFlags, newFlags;
+        do
+        {
+            oldFlags = Flags;
+            newFlags = oldFlags | (int)setFlags;
+            if (oldFlags == newFlags)
+                return false;
+        } while (Interlocked.CompareExchange(ref Flags, newFlags, oldFlags) != oldFlags);
+
+        return true;
+    }
+
+    public bool HasFlags(TweenTaskSettingFlags checkFlags)
+    {
+        return (Flags & (int)checkFlags) != 0;
+    }
+
+    public bool HasFlag(TweenTaskSettingFlags checkFlags)
+    {
+        return (Flags & (int)checkFlags) != 0;
+    }
+
+    public void SetFlags(TweenTaskSettingFlags setFlags)
+    {
+        Flags |= (int)setFlags;
+    }
+
+    public void ClearFlags(TweenTaskSettingFlags clearFlags)
+    {
+        Flags &= ~(int)clearFlags;
+    }
+}
+
+internal struct TweenTaskFlagsWrapper(int flags)
 {
     public int Flags = flags;
 
@@ -61,7 +113,7 @@ internal struct TweenTaskFlags(int flags)
 public struct TweenTaskCompletionSourceLightCore
 {
     private object? error; // ExceptionHolder or OperationCanceledException
-    internal TweenTaskFlags Flags;
+    internal TweenTaskFlagsWrapper Flags;
 
     /// <summary>Gets the operation version.</summary>
     [DebuggerHidden]
@@ -111,7 +163,7 @@ public struct TweenTaskCompletionSourceLightCore
         }
 
         error = null;
-        Flags = new TweenTaskFlags((int)TweenTaskCompletionLightSourceFlags.Pooled);
+        Flags = new TweenTaskFlagsWrapper((int)TweenTaskCompletionLightSourceFlags.Pooled);
     }
 
     private void ReportUnhandledError()
@@ -333,7 +385,8 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
         return wrapper;
     }
 
-    public static readonly Action<object?, TweenEvent> RunAction = static (w, e) => Unsafe.As<LightCallBackWrapper>(w).Run(e);
+    public static readonly Action<object?, TweenEvent> RunAction = static (w, e) =>
+        Unsafe.As<LightCallBackWrapper>(w).Run(e);
 
     public void Run(TweenEvent tweenEvent)
     {

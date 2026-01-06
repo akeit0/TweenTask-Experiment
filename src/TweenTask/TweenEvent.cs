@@ -10,7 +10,7 @@ public enum TweenEventType : byte
     Cancel
 }
 
-public readonly record struct TweenEvent(TweenEventType EventType, int CompletedLoops = 0, Exception? Exception = null)
+public readonly record struct TweenEvent(TweenEventType EventType, int CompletedLoops = 0, int LoopCount = 0)
 {
     public bool IsEnd => EventType is TweenEventType.Complete or TweenEventType.Cancel;
 }

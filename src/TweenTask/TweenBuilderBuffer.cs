@@ -18,7 +18,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public int LoopCount = 1;
     public LoopType LoopType;
     public Ease Ease;
-    public bool IsRelative;
+    public TweenTaskSettingFlagsWrapper Flags;
     public Action<object?, TweenEvent>? OnEndAction;
     public double PlaybackSpeed = 1;
     public object? OnEndState;
@@ -28,7 +28,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public ref TweenBuilderBuffer<TValue, TAdapter>? NextNode => ref next;
     public Func<object?, TValue>? GetCallback;
 
-    public double TotalDuration => Delay + Duration * LoopCount;
+    public double TotalDuration => (Flags.HasFlag(TweenTaskSettingFlags.DelayEveryLoop) ? LoopCount : 1)*Delay + Duration * LoopCount;
 
     public static TweenBuilderBuffer<TValue, TAdapter> Rent()
     {
@@ -38,23 +38,25 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
 
     public void ApplyAdapterState()
     {
+        var isRelative = Flags.HasFlags(TweenTaskSettingFlags.IsRelative);
         if (GetCallback is not null)
         {
-            Adapter.ApplyFrom(GetCallback(GetSetState), IsRelative);
+            Adapter.ApplyFrom(GetCallback(GetSetState), isRelative);
         }
-        else if (IsRelative)
+        else if (isRelative)
         {
-            Adapter.ApplyFrom(Adapter.From!, IsRelative);
+            Adapter.ApplyFrom(Adapter.From!, isRelative);
         }
     }
 
     public TweenPromise CreatePromise(out short token)
     {
         ApplyAdapterState();
+        Flags.ClearFlags(TweenTaskSettingFlags.IsRelative);
         var promise = TweenPromise<TValue, TAdapter>.Create(Delay,
             Duration, PlaybackSpeed, LoopCount,LoopType, Ease, Adapter, SetCallback, GetSetState,
             OnEndAction, OnEndState,
-            CancellationToken,
+            CancellationToken,(TweenTaskSettingFlags)Flags.Flags,
             out token);
         TryReturn();
         return promise;
@@ -72,6 +74,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
         SetCallback = null;
         GetSetState = null;
         OnEndAction = null;
+        Flags = default;
         if (Version != ushort.MaxValue) return taskPool.TryPush(this);
         return false;
     }

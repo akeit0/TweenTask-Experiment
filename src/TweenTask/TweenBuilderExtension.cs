@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using TweenTasks.Internal;
 
 namespace TweenTasks;
 
@@ -23,6 +24,34 @@ public static class TweenBuilderExtension
             builder.Validate();
             builder.Buffer.LoopCount = loopCount;
             builder.Buffer.LoopType = loopType;
+            return builder;
+        }
+
+
+        public TweenBuilder<TValue, TAdapter> WithDelay(double delay, DelayType delayType = DelayType.FirstLoop,
+            bool skipValuesDuringDelay = true)
+        {
+            builder.Validate();
+            var buffer = builder.Buffer;
+            buffer.Delay = delay;
+            if (skipValuesDuringDelay)
+            {
+                buffer.Flags.ClearFlags(TweenTaskSettingFlags.ApplyValuesDuringDelay);
+            }
+            else
+            {
+                buffer.Flags.SetFlags(TweenTaskSettingFlags.ApplyValuesDuringDelay);
+            }
+
+            if (delayType == DelayType.FirstLoop)
+            {
+                buffer.Flags.ClearFlags(TweenTaskSettingFlags.DelayEveryLoop);
+            }
+            else
+            {
+                buffer.Flags.SetFlags(TweenTaskSettingFlags.DelayEveryLoop);
+            }
+
             return builder;
         }
 
@@ -68,7 +97,7 @@ public static class TweenBuilderExtension
             builder.buffer.OnEndAction = Unsafe.As<Action<object?, TweenEvent>>(callback);
             return builder;
         }
-        
+
         public TweenSequenceBuilder WithLoop(int loopCount, LoopType loopType = LoopType.Restart)
         {
             builder.Validate();
@@ -76,7 +105,6 @@ public static class TweenBuilderExtension
             builder.buffer.LoopType = loopType;
             return builder;
         }
-        
     }
 
     extension<TValue, TOption, TAdapter>(TweenBuilder<TValue, TAdapter> builder)
