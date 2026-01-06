@@ -222,7 +222,15 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
 
         double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
-        action?.Invoke(State, adapter.Evaluate(easedValue));
+        try
+        {
+            action?.Invoke(State, adapter.Evaluate(easedValue));
+        }
+        catch (Exception e)
+        {
+            TweenSystem.GetUnhandledExceptionHandler()(e);
+        }
+
         if (totalProgress < 1) return;
 
         if (!Core.IsPreserved)
@@ -245,12 +253,36 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
             return false;
         }
 
-        if (Delay > Time) return true;
+        if (Delay > Time)
+        {
+            if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ApplyValuesDuringDelay))
+            {
+                progress = 0;
+            }
+            else
+            {
+                return true;
+            }
+        }
+
         var totalProgress = progress / LoopCount;
         double easedValue = TweenMath.CalculateProgress(progress, LoopCount, LoopType, Ease);
 
-        //Console.WriteLine(adapter+" " +adapter.Evaluate(easedValue));
-        action?.Invoke(State, adapter.Evaluate(easedValue));
+        try
+        {
+            action?.Invoke(State, adapter.Evaluate(easedValue));
+        }
+        catch (Exception e)
+        {
+            TweenSystem.GetUnhandledExceptionHandler()(e);
+            if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.CancelOnError))
+            {
+                ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
+
+                return false;
+            }
+        }
+
         if (totalProgress < 1) return true;
 
         ReturnWithContinuation(new TweenEvent(TweenEventType.Complete));
