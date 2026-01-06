@@ -60,6 +60,7 @@ public readonly struct TweenSequenceBuilder
 internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBuffer>, IReturnable
 {
     static TaskPool<TweenSequenceBuilderBuffer> pool;
+    internal ArrayPool<TweenSequenceItem> ItemArrayPool;
     internal TweenSequenceItem[]? TweensBuffer;
     internal int TweenCount;
     internal object? EndState;
@@ -74,13 +75,14 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     TweenSequenceBuilderBuffer? next;
     ref TweenSequenceBuilderBuffer? ITaskPoolNode<TweenSequenceBuilderBuffer>.NextNode => ref next;
 
-    public static TweenSequenceBuilderBuffer Create(out int version)
+    public static TweenSequenceBuilderBuffer Create(ArrayPool<TweenSequenceItem> arrayPool, out int version)
     {
         if (!pool.TryPop(out var builder))
         {
             builder = new TweenSequenceBuilderBuffer();
         }
 
+        builder.ItemArrayPool = arrayPool;
         version = builder.Version;
         return builder;
     }
@@ -89,14 +91,14 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     {
         if (TweensBuffer == null)
         {
-            TweensBuffer = ArrayPool<TweenSequenceItem>.Shared.Rent(8);
+            TweensBuffer = ItemArrayPool.Rent(8);
         }
 
         if (TweensBuffer.Length == TweenCount)
         {
-            var newBuffer = ArrayPool<TweenSequenceItem>.Shared.Rent(TweenCount * 2);
+            var newBuffer = ItemArrayPool.Rent(TweenCount * 2);
             TweensBuffer.AsSpan().CopyTo(newBuffer.AsSpan());
-            ArrayPool<TweenSequenceItem>.Shared.Return(TweensBuffer, true);
+            ItemArrayPool.Return(TweensBuffer, true);
             TweensBuffer = newBuffer;
         }
 
@@ -110,7 +112,8 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     {
         TweensBuffer ??= [];
         Array.Sort(TweensBuffer, 0, TweenCount);
-        var promise = TweenSequencePromise.Create(TweensBuffer, TweenCount, 0, Duration, 1, LoopCount, LoopType, Ease,
+        var promise = TweenSequencePromise.Create(ItemArrayPool, TweensBuffer, TweenCount, 0, Duration, 1, LoopCount,
+            LoopType, Ease,
             OnEndAction,
             EndState,
             cancellationToken, out var token);
@@ -139,8 +142,13 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
 
 public static class TweenSequence
 {
-    public static TweenSequenceBuilder Create()
+    public static TweenSequenceBuilder Create(ArrayPool<TweenSequenceItem>? arrayPool = null)
     {
-        return new TweenSequenceBuilder(TweenSequenceBuilderBuffer.Create(out var version), version);
+        if (arrayPool == null)
+        {
+            arrayPool = ArrayPool<TweenSequenceItem>.Shared;
+        }
+
+        return new TweenSequenceBuilder(TweenSequenceBuilderBuffer.Create(arrayPool, out var version), version);
     }
 }

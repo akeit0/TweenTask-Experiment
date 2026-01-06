@@ -11,12 +11,13 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
 
     public int SequenceItemCount;
     public int BuiltCount;
+    public ArrayPool<TweenSequenceItem> ItemArrayPool;
     static TaskPool<TweenSequencePromise> _pool;
 
     private TweenSequencePromise? next;
     ref TweenSequencePromise? ITaskPoolNode<TweenSequencePromise>.NextNode => ref next;
 
-    public static TweenSequencePromise Create(TweenSequenceItem[] items, int count, double delay, double duration,
+    public static TweenSequencePromise Create(ArrayPool<TweenSequenceItem> itemArrayPool,TweenSequenceItem[] items, int count, double delay, double duration,
         double playBackSpeed, int loopCount,
         LoopType loopType, Ease ease, Action<object?, TweenEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
@@ -25,7 +26,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
         {
             promise = new TweenSequencePromise();
         }
-
+        promise.ItemArrayPool = itemArrayPool;
         promise.BuiltCount = 0;
         promise.SequenceItems = items;
         promise.SequenceItemCount = count;
@@ -68,7 +69,7 @@ internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskP
             else ((IReturnable)p).TryReturn();
         }
 
-        ArrayPool<TweenSequenceItem>.Shared.Return(SequenceItems, true);
+        ItemArrayPool.Return(SequenceItems, true);
         EventCallback = null;
         EventState = null;
         State = null;
