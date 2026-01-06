@@ -19,7 +19,7 @@ public class Game1 : Game
     private readonly HashSet<SimpleSpriteObject> spriteObjects = new();
     private readonly HashSet<SimpleSpriteObject> spriteObjectsToDelete = new();
 
-    private ManualTweenRunner? runner;
+    private ManualDeltaTimeProvider? provider;
     private SpriteBatch spriteBatch;
 
     private AudioSource soundFx;
@@ -79,10 +79,10 @@ public class Game1 : Game
 
     protected override void BeginRun()
     {
-        if (runner == null)
+        if (provider == null)
         {
-            runner = new(0);
-            ITweenRunner.Default = runner;
+            provider = new(0);
+            TweenSystem.DefaultDeltaTimeProvider = provider;
         }
 
         var bounds = Window.ClientBounds;
@@ -192,7 +192,7 @@ public class Game1 : Game
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
         UpdateKeyStates();
-        runner!.Run(gameTime.TotalGameTime.TotalSeconds);
+        provider!.Run(gameTime.TotalGameTime.TotalSeconds);
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);

@@ -2,9 +2,9 @@
 
 using TweenTasks;
 
-using var runner = new TimerTweenRunner(TimeSpan.FromSeconds(0.30));
-ITweenRunner.Default = runner;
-using var runner2 = new TimerTweenRunner(TimeSpan.FromSeconds(0.10));
+using var provider = new TimerDeltaTimeProvider(TimeSpan.FromSeconds(0.30));
+TweenSystem.DefaultDeltaTimeProvider = provider;
+using var provider2 = new TimerDeltaTimeProvider(TimeSpan.FromSeconds(0.10));
 var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2.5));
 try
 {
@@ -18,7 +18,7 @@ try
 
     TweenTask.Create(0, 3, 1).Bind(
         static d => { Console.WriteLine($"progress 2:{d / 3:f2}"); },
-        cts.Token).WithRunner(runner2)
+        cts.Token).WithDeltaTimeProvider(provider2)
         .WithOnEnd(result => Console.WriteLine("Progress 2 Complete " + result)).Schedule().Forget();
 
     TweenTask.Create(0, 1, 1).Bind(
@@ -26,12 +26,12 @@ try
             cts.Token)
         .WithOnEnd(result => Console.WriteLine("Progress 3 Complete " + result)).Schedule().Forget();
 
-    var t4 = TweenTask.Create(0, 1, 2 - 0.01).Bind(runner,
-        static (runner, d) => { Console.WriteLine($"progress 4:{d:f2}, time:{runner.GetCurrentTime()}"); },
+    var t4 = TweenTask.Create(0, 1, 2 - 0.01).Bind(provider,
+        static (provider, d) => { Console.WriteLine($"progress 4:{d:f2}, time:{provider.GetCurrentTime()}"); },
         cts.Token).Schedule();
 
-    var t5 = TweenTask.Create(0, 1, 3 - 0.01).Bind(runner,
-        static (runner, d) => { Console.WriteLine($"progress 5:{d:f2}, time:{runner.GetCurrentTime()}"); },
+    var t5 = TweenTask.Create(0, 1, 3 - 0.01).Bind(provider,
+        static (provider, d) => { Console.WriteLine($"progress 5:{d:f2}, time:{provider.GetCurrentTime()}"); },
         cts.Token).Schedule();;
 
     await t4;

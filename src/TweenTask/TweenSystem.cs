@@ -5,7 +5,7 @@ namespace TweenTasks;
 public static class TweenSystem
 {
     static Action<Exception> unhandledException = DefaultUnhandledExceptionHandler;
-
+    public static DeltaTimeProvider DefaultDeltaTimeProvider { get; set; }
 
     // Prevent +=, use Set and Get method.
     public static void RegisterUnhandledExceptionHandler(Action<Exception> unhandledExceptionHandler)

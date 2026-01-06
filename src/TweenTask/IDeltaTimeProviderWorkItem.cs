@@ -1,6 +1,6 @@
 namespace TweenTasks;
 
-public interface ITweenRunnerWorkItem
+public interface IDeltaTimeProviderWorkItem
 {
     // true, continue
     bool MoveNext(double deltaTime);

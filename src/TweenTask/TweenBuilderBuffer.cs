@@ -21,7 +21,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public bool IsRelative;
     public Action<object?, TweenEvent>? OnEndAction;
     public double PlaybackSpeed = 1;
-    public ITweenRunner Runner;
+    public DeltaTimeProvider DeltaTimeProvider;
     public object? OnEndState;
     public ushort Version;
     private static TaskPool<TweenBuilderBuffer<TValue, TAdapter>> taskPool;
@@ -34,7 +34,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public static TweenBuilderBuffer<TValue, TAdapter> Rent()
     {
         if (!taskPool.TryPop(out var buffer)) buffer = new();
-        buffer.Runner = ITweenRunner.Default;
+        buffer.DeltaTimeProvider = TweenSystem.DefaultDeltaTimeProvider;
         return buffer;
     }
 
@@ -53,7 +53,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public TweenPromise CreatePromise(out short token)
     {
         ApplyAdapterState();
-        var promise = TweenPromise<TValue, TAdapter>.Create(Delay,
+        var promise = Promise<TValue, TAdapter>.Create(Delay,
             Duration, PlaybackSpeed, LoopCount,LoopType, Ease, Adapter, SetCallback, GetSetState,
             OnEndAction, OnEndState,
             CancellationToken,
@@ -65,7 +65,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
     public bool TryReturn()
     {
         PlaybackSpeed = 1;
-        Runner = null!;
+        DeltaTimeProvider = null!;
         Adapter = default;
         LoopCount = 1;
         LoopType= default;
@@ -95,7 +95,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
 //     public static TweenBuilderBufferWithFromGetter<TValue, TAdapter> Rent()
 //     {
 //         if (!taskPool.TryPop(out var buffer)) buffer = new();
-//         buffer.Runner = ITweenRunner.Default;
+//         buffer.DeltaTimeProvider = ITweenDeltaTimeProvider.Default;
 //         return buffer;
 //     }
 //
@@ -116,7 +116,7 @@ internal sealed class TweenBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Tween
 //     public override void Return()
 //     {
 //         PlaybackSpeed = 1;
-//         Runner = null!;
+//         DeltaTimeProvider = null!;
 //         Adapter = default;
 //         if (Version != ushort.MaxValue) taskPool.TryPush(this);
 //     }

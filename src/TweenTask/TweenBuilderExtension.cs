@@ -18,10 +18,10 @@ public static class TweenBuilderExtension
             return builder;
         }
 
-        public TweenBuilder<TValue, TAdapter> WithRunner(ITweenRunner runner)
+        public TweenBuilder<TValue, TAdapter> WithDeltaTimeProvider(DeltaTimeProvider provider)
         {
             builder.Validate();
-            builder.Buffer.Runner = runner;
+            builder.Buffer.DeltaTimeProvider = provider;
             return builder;
         }
 

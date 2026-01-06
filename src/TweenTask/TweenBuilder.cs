@@ -133,9 +133,9 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
 
     public TweenTask Schedule()
     {
-        var runner = Buffer.Runner ?? ITweenRunner.Default;
+        var provider = Buffer.DeltaTimeProvider ?? TweenSystem.DefaultDeltaTimeProvider;
         var t = Build();
-        runner.Register((ITweenRunnerWorkItem)t.Promise);
+        provider.Register((IDeltaTimeProviderWorkItem)t.Promise);
         return t;
     }
 

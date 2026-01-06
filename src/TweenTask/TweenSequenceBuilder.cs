@@ -112,12 +112,12 @@ internal class TweenSequenceBuilderBuffer : ITaskPoolNode<TweenSequenceBuilderBu
     {
         TweensBuffer ??= [];
         Array.Sort(TweensBuffer, 0, TweenCount);
-        var promise = TweenSequencePromise.Create(ItemArrayPool, TweensBuffer, TweenCount, 0, Duration, 1, LoopCount,
+        var promise = SequencePromise.Create(ItemArrayPool, TweensBuffer, TweenCount, 0, Duration, 1, LoopCount,
             LoopType, Ease,
             OnEndAction,
             EndState,
             cancellationToken, out var token);
-        ITweenRunner.Default.Register(promise);
+        TweenSystem.DefaultDeltaTimeProvider.Register(promise);
         TryReturn();
         return new TweenTask(promise, token);
     }

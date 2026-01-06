@@ -2,14 +2,14 @@ using System;
 
 namespace TweenTasks;
 
-public sealed class ManualTweenRunner : ITweenRunner, IDisposable
+public sealed class ManualDeltaTimeProvider : DeltaTimeProvider, IDisposable
 {
     private readonly object gate = new();
     private double currentTime;
     private bool disposed;
-    private FreeListCore<ITweenRunnerWorkItem> list;
+    private FreeListCore<IDeltaTimeProviderWorkItem> list;
 
-    public ManualTweenRunner(double currentTime)
+    public ManualDeltaTimeProvider(double currentTime)
     {
         list = new(gate);
 
@@ -29,14 +29,14 @@ public sealed class ManualTweenRunner : ITweenRunner, IDisposable
     }
 
 
-    public double GetCurrentTime()
+    public override double GetCurrentTime()
     {
         return currentTime;
     }
 
-    public void Register(ITweenRunnerWorkItem callback)
+    public override void Register(IDeltaTimeProviderWorkItem callback)
     {
-        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerTweenRunner));
+        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerDeltaTimeProvider));
         list.Add(callback, out _);
     }
 

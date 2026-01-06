@@ -5,26 +5,26 @@ using System.Threading;
 
 namespace TweenTasks.Internal;
 
-internal class TweenSequencePromise : TweenPromise, ITweenRunnerWorkItem, ITaskPoolNode<TweenSequencePromise>
+internal class SequencePromise : TweenPromise, IDeltaTimeProviderWorkItem, ITaskPoolNode<SequencePromise>
 {
     public TweenSequenceItem[] SequenceItems = null!;
 
     public int SequenceItemCount;
     public int BuiltCount;
     public ArrayPool<TweenSequenceItem> ItemArrayPool;
-    static TaskPool<TweenSequencePromise> _pool;
+    static TaskPool<SequencePromise> _pool;
 
-    private TweenSequencePromise? next;
-    ref TweenSequencePromise? ITaskPoolNode<TweenSequencePromise>.NextNode => ref next;
+    private SequencePromise? next;
+    ref SequencePromise? ITaskPoolNode<SequencePromise>.NextNode => ref next;
 
-    public static TweenSequencePromise Create(ArrayPool<TweenSequenceItem> itemArrayPool,TweenSequenceItem[] items, int count, double delay, double duration,
+    public static SequencePromise Create(ArrayPool<TweenSequenceItem> itemArrayPool,TweenSequenceItem[] items, int count, double delay, double duration,
         double playBackSpeed, int loopCount,
         LoopType loopType, Ease ease, Action<object?, TweenEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, out short token)
     {
         if (!_pool.TryPop(out var promise))
         {
-            promise = new TweenSequencePromise();
+            promise = new SequencePromise();
         }
         promise.ItemArrayPool = itemArrayPool;
         promise.BuiltCount = 0;

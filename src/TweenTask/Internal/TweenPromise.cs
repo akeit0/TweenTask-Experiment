@@ -146,19 +146,19 @@ internal static class TweenMath
     }
 }
 
-internal class TweenPromise<T, TAdapter> : TweenPromise, ITweenRunnerWorkItem,
-    ITaskPoolNode<TweenPromise<T, TAdapter>>
+internal class Promise<T, TAdapter> : TweenPromise, IDeltaTimeProviderWorkItem,
+    ITaskPoolNode<Promise<T, TAdapter>>
     where TAdapter : ITweenAdapter<T>
 {
-    private static TaskPool<TweenPromise<T, TAdapter>> pool;
+    private static TaskPool<Promise<T, TAdapter>> pool;
     private Action<object?, T>? action;
     private TAdapter adapter = default!;
 
-    private TweenPromise<T, TAdapter>? next;
-    ref TweenPromise<T, TAdapter>? ITaskPoolNode<TweenPromise<T, TAdapter>>.NextNode => ref next;
+    private Promise<T, TAdapter>? next;
+    ref Promise<T, TAdapter>? ITaskPoolNode<Promise<T, TAdapter>>.NextNode => ref next;
 
 
-    public static TweenPromise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, int loopCount,
+    public static Promise<T, TAdapter> Create(double delay, double duration, double playBackSpeed, int loopCount,
         LoopType loopType, Ease ease,
         TAdapter adapter,
         Action<object?, T>? action, object? state, Action<object?, TweenEvent>? endCallback, object? endState,

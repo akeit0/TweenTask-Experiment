@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace TweenTasks;
 
-public sealed class TimerTweenRunner : ITweenRunner, IDisposable
+public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
 {
     private static readonly TimerCallback TimerCallback = Run;
 
@@ -13,19 +13,19 @@ public sealed class TimerTweenRunner : ITweenRunner, IDisposable
     private readonly ITimer timer;
     private double currentTime;
     private bool disposed;
-    private FreeListCore<ITweenRunnerWorkItem> list;
+    private FreeListCore<IDeltaTimeProviderWorkItem> list;
 
-    public TimerTweenRunner(TimeSpan period)
+    public TimerDeltaTimeProvider(TimeSpan period)
         : this(period, period, TimeProvider.System)
     {
     }
 
-    public TimerTweenRunner(TimeSpan dueTime, TimeSpan period)
+    public TimerDeltaTimeProvider(TimeSpan dueTime, TimeSpan period)
         : this(dueTime, period, TimeProvider.System)
     {
     }
 
-    public TimerTweenRunner(TimeSpan dueTime, TimeSpan period, TimeProvider timeProvider)
+    public TimerDeltaTimeProvider(TimeSpan dueTime, TimeSpan period, TimeProvider timeProvider)
     {
         list = new(gate);
         timer = timeProvider.CreateStoppedTimer(TimerCallback, this);
@@ -50,20 +50,20 @@ public sealed class TimerTweenRunner : ITweenRunner, IDisposable
         }
     }
 
-    public double GetCurrentTime()
+    public override double GetCurrentTime()
     {
         return TimeSpan.FromTicks(timeProvider.GetTimestamp() - startTimeStamp).TotalSeconds;
     }
 
-    public void Register(ITweenRunnerWorkItem callback)
+    public  override void Register(IDeltaTimeProviderWorkItem callback)
     {
-        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerTweenRunner));
+        ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerDeltaTimeProvider));
         list.Add(callback, out _);
     }
 
     private static void Run(object? state)
     {
-        var self = (TimerTweenRunner)state!;
+        var self = (TimerDeltaTimeProvider)state!;
         if (self.disposed) return;
 
         lock (self.gate)
