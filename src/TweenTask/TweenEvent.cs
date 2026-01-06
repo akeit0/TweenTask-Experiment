@@ -1,3 +1,5 @@
+using System;
+
 namespace TweenTasks;
 
 public enum TweenEventType : byte
@@ -8,9 +10,6 @@ public enum TweenEventType : byte
     Cancel
 }
 
-public readonly record struct TweenEvent(TweenEventType EventType, int CompletedLoops)
+public readonly record struct TweenEvent(TweenEventType EventType, int CompletedLoops = 0, Exception? Exception = null)
 {
-    public TweenEvent(TweenEventType eventType) : this(eventType, 0)
-    {
-    }
 }
