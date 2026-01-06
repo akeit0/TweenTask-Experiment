@@ -28,42 +28,33 @@ public sealed class ManualDeltaTimeProvider : DeltaTimeProvider, IDisposable
         }
     }
 
-
-    public override double GetCurrentTime()
-    {
-        return currentTime;
-    }
-
     public override void Register(IDeltaTimeProviderWorkItem callback)
     {
         ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerDeltaTimeProvider));
         list.Add(callback, out _);
     }
 
-    public void Run(double dueTime)
+    public void Run(double deltaTime)
     {
         var self = this;
         if (self.disposed) return;
 
         lock (self.gate)
         {
-            var last = self.currentTime;
-            self.currentTime = dueTime;
             var span = self.list.AsSpan();
             for (var i = 0; i < span.Length; i++)
             {
-                ref readonly var item = ref span[i];
+                 var item =  span[i];
                 if (item != null)
                     try
                     {
-                        if (!item.MoveNext(self.currentTime - last)) self.list.Remove(i);
+                        if (!item.MoveNext(deltaTime)) self.list.Remove(i);
                     }
                     catch (Exception ex)
                     {
                         self.list.Remove(i);
                         try
                         {
-                            Console.WriteLine(ex);
                             TweenSystem.GetUnhandledExceptionHandler().Invoke(ex);
                         }
                         catch

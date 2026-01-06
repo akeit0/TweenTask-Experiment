@@ -192,7 +192,7 @@ public class Game1 : Game
             Keyboard.GetState().IsKeyDown(Keys.Escape))
             Exit();
         UpdateKeyStates();
-        provider!.Run(gameTime.TotalGameTime.TotalSeconds);
+        provider!.Run(gameTime.ElapsedGameTime.TotalSeconds);
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);

@@ -27,11 +27,11 @@ try
         .WithOnEnd(result => Console.WriteLine("Progress 3 Complete " + result)).Schedule().Forget();
 
     var t4 = TweenTask.Create(0, 1, 2 - 0.01).Bind(provider,
-        static (provider, d) => { Console.WriteLine($"progress 4:{d:f2}, time:{provider.GetCurrentTime()}"); },
+        static (provider, d) => { Console.WriteLine($"progress 4:{d:f2}"); },
         cts.Token).Schedule();
 
     var t5 = TweenTask.Create(0, 1, 3 - 0.01).Bind(provider,
-        static (provider, d) => { Console.WriteLine($"progress 5:{d:f2}, time:{provider.GetCurrentTime()}"); },
+        static (provider, d) => { Console.WriteLine($"progress 5:{d:f2}"); },
         cts.Token).Schedule();;
 
     await t4;

@@ -50,11 +50,6 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
         }
     }
 
-    public override double GetCurrentTime()
-    {
-        return TimeSpan.FromTicks(timeProvider.GetTimestamp() - startTimeStamp).TotalSeconds;
-    }
-
     public  override void Register(IDeltaTimeProviderWorkItem callback)
     {
         ThrowHelper.ThrowObjectDisposedIf(disposed, typeof(TimerDeltaTimeProvider));
@@ -70,6 +65,7 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
         {
             var last = self.currentTime;
             self.currentTime = self.timeProvider.GetElapsedTime(self.startTimeStamp).TotalSeconds;
+            var delta = self.currentTime - last;
             var span = self.list.AsSpan();
             for (var i = 0; i < span.Length; i++)
             {
@@ -77,7 +73,7 @@ public sealed class TimerDeltaTimeProvider : DeltaTimeProvider, IDisposable
                 if (item != null)
                     try
                     {
-                        if (!item.MoveNext(self.currentTime - last)) self.list.Remove(i);
+                        if (!item.MoveNext(delta)) self.list.Remove(i);
                     }
                     catch (Exception ex)
                     {
