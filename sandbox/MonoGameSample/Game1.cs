@@ -369,10 +369,8 @@ public class Game1 : Game
     {
         while (obj.CancellationToken.IsCancellationRequested == false)
         {
-            var mousePoint = Mouse.GetState().Position;
-            var target = new Vector2(mousePoint.X, mousePoint.Y);
-            await new SpringToBuilderEntry<Vector2,Vector2SpringAdapter>(new Vector2SpringAdapter(target,
-                new SpringConfig
+            await new SpringToBuilderEntry<Vector2, Vector2SpringAdapter>(new Vector2SpringAdapter(default,
+                    new SpringConfig
                     {
                         Mass = 1,
                         Stiffness = 100,
@@ -380,28 +378,26 @@ public class Game1 : Game
                         PositionEpsilon = 1,
                         VelocityEpsilon = 1f
                     }))
-                .Bind(obj, static (o) =>
-                {
-                    return o.Position;
-                }, static (o, v) =>
-                {
-                    o.Position = v;
-                }).WithToGetter(this,static (_)=>
-                {
-                    var mousePoint = Mouse.GetState().Position;
-                    return new Vector2(mousePoint.X, mousePoint.Y);
-                }).WithCancellationToken(obj.CancellationToken)
+                .Bind(obj, static (o) => o.Position,
+                    static (o, v) => { o.Position = v; }).WithToGetter(
+                    this, static (_) =>
+                    {
+                        var mousePoint = Mouse.GetState().Position;
+                        return new Vector2(mousePoint.X, mousePoint.Y);
+                    }).WithCancellationToken(obj.CancellationToken)
                 .Schedule();
-            soundFx.PlayWave(220, 200,
-                WaveType.Square,
-                0.04f);
-            Console.WriteLine("Moved to " + target);
-            await TweenTask.Create(0,1,0.6).Bind(obj,static(o,v)=>{})
-                .WithCancellationToken(obj.CancellationToken)
-                .Schedule();
+
+            while (true)
+            {
+                var mousePoint = Mouse.GetState().Position;
+                var target = new Vector2(mousePoint.X, mousePoint.Y);
+                if (Vector2.Distance(target, obj.Position) > 10f)
+                    break;
+                await obj.TweenRotationTo(MathF.PI * 2, 0.5).WithRelative().Schedule();
+            }
         }
-        
     }
+
     private async void Delete(SimpleSpriteObject obj)
     {
         try
@@ -456,10 +452,10 @@ public class Game1 : Game
                 Color.White);
         }
 
-        spriteBatch.DrawString(hudFont,
-            $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
-            new Vector2(0, 50),
-            Color.White);
+        // spriteBatch.DrawString(hudFont,
+        //     $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
+        //     new Vector2(0, 50),
+        //     Color.White);
 
         spriteBatch.End();
         base.Draw(gameTime);
