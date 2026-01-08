@@ -19,6 +19,7 @@
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
     </ItemGroup>
     <ItemGroup>
+        <ProjectReference Include="..\..\src\SpringTasks\SpringTasks.csproj" />
         <ProjectReference Include="..\..\src\TweenTask\TweenTask.csproj"/>
         <ProjectReference Include="..\..\MustUseThisAnalyzer\MustUseThisAnalyzer\MustUseThisAnalyzer.csproj">
             <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

@@ -2,7 +2,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using TweenTasks.Internal;
-
+using MotionTasks;
 namespace TweenTasks;
 
 public static class TweenBuilder
@@ -133,7 +133,7 @@ public readonly struct TweenBuilder<TValue, TAdapter> : IDisposable where TAdapt
 
     public TweenTask Schedule(FrameDeltaTimeProvider? provider = null)
     {
-        provider ??= TweenSystem.DefaultFrameDeltaTimeProvider;
+        provider ??= MotionSystem.DefaultFrameDeltaTimeProvider;
         var t = Build();
         provider.Register((IFrameDeltaTimeProviderWorkItem)t.Promise, true);
         return t;

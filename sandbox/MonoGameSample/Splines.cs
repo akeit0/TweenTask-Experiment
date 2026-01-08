@@ -1,7 +1,6 @@
 using System;
 using MathNet.Numerics.Interpolation;
-using Vector2 = Microsoft.Xna.Framework.Vector2;
-
+using Vector2 =System.Numerics.Vector2 ;
 namespace MonoGameSample;
 
 public class Spline2D

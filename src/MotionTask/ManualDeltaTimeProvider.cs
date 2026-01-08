@@ -1,7 +1,7 @@
 using System;
 using Cysharp.Threading.Tasks.Internal;
 
-namespace TweenTasks;
+namespace MotionTasks;
 
 public sealed class ManualFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDisposable
 {
@@ -130,7 +130,7 @@ public sealed class ManualFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDisp
                         action = null;
                         try
                         {
-                            TweenSystem.GetUnhandledExceptionHandler()(ex);
+                            MotionSystem.GetUnhandledExceptionHandler()(ex);
                         }
                         catch
                         {
@@ -167,7 +167,7 @@ public sealed class ManualFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDisp
                             j--;
                             try
                             {
-                                TweenSystem.GetUnhandledExceptionHandler()(ex);
+                                MotionSystem.GetUnhandledExceptionHandler()(ex);
                             }
                             catch
                             {

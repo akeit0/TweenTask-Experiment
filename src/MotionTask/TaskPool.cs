@@ -26,7 +26,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace TweenTasks;
+namespace MotionTasks;
 
 // mutable struct, don't mark readonly.
 [StructLayout(LayoutKind.Auto)]

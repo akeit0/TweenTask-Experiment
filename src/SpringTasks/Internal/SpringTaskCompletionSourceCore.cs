@@ -7,10 +7,10 @@ using System.Threading.Tasks.Sources;
 using MotionTasks;
 using MotionTasks.Internal;
 
-namespace TweenTasks.Internal;
+namespace SpringTasks.Internal;
 
 [Flags]
-internal enum TweenTaskSettingFlags
+internal enum SpringTaskSettingFlags
 {
     None = 0,
     Preserved = 1,
@@ -23,7 +23,7 @@ internal enum TweenTaskSettingFlags
 }
 
 [Flags]
-internal enum TweenTaskCompletionLightSourceFlags
+internal enum SpringTaskCompletionLightSourceFlags
 {
     None = 0,
     Preserved = 1,
@@ -38,11 +38,11 @@ internal enum TweenTaskCompletionLightSourceFlags
     HasHandledError = Done << 1,
 }
 
-internal struct TweenTaskSettingFlagsWrapper(int flags)
+internal struct SpringTaskSettingFlagsWrapper(int flags)
 {
     public int Flags = flags;
 
-    public bool TrySetFlags(TweenTaskSettingFlags setFlags)
+    public bool TrySetFlags(SpringTaskSettingFlags setFlags)
     {
         int oldFlags, newFlags;
         do
@@ -56,32 +56,32 @@ internal struct TweenTaskSettingFlagsWrapper(int flags)
         return true;
     }
 
-    public bool HasFlags(TweenTaskSettingFlags checkFlags)
+    public bool HasFlags(SpringTaskSettingFlags checkFlags)
     {
         return (Flags & (int)checkFlags) != 0;
     }
 
-    public bool HasFlag(TweenTaskSettingFlags checkFlags)
+    public bool HasFlag(SpringTaskSettingFlags checkFlags)
     {
         return (Flags & (int)checkFlags) != 0;
     }
 
-    public void SetFlags(TweenTaskSettingFlags setFlags)
+    public void SetFlags(SpringTaskSettingFlags setFlags)
     {
         Flags |= (int)setFlags;
     }
 
-    public void ClearFlags(TweenTaskSettingFlags clearFlags)
+    public void ClearFlags(SpringTaskSettingFlags clearFlags)
     {
         Flags &= ~(int)clearFlags;
     }
 }
 
-internal struct TweenTaskFlagsWrapper(int flags)
+internal struct MotionTaskFlagsWrapper(int flags)
 {
     public int Flags = flags;
 
-    public bool TrySetFlags(TweenTaskCompletionLightSourceFlags setFlags)
+    public bool TrySetFlags(SpringTaskCompletionLightSourceFlags setFlags)
     {
         int oldFlags, newFlags;
         do
@@ -95,27 +95,27 @@ internal struct TweenTaskFlagsWrapper(int flags)
         return true;
     }
 
-    public bool HasFlags(TweenTaskCompletionLightSourceFlags checkFlags)
+    public bool HasFlags(SpringTaskCompletionLightSourceFlags checkFlags)
     {
         return (Flags & (int)checkFlags) != 0;
     }
 
-    public void SetFlags(TweenTaskCompletionLightSourceFlags setFlags)
+    public void SetFlags(SpringTaskCompletionLightSourceFlags setFlags)
     {
         Flags |= (int)setFlags;
     }
 
-    public void ClearFlags(TweenTaskCompletionLightSourceFlags clearFlags)
+    public void ClearFlags(SpringTaskCompletionLightSourceFlags clearFlags)
     {
         Flags &= ~(int)clearFlags;
     }
 }
 
 [StructLayout(LayoutKind.Auto)]
-public struct TweenTaskCompletionSourceLightCore
+public struct MotionTaskCompletionSourceLightCore
 {
     private object? error; // ExceptionHolder or OperationCanceledException
-    internal TweenTaskFlagsWrapper Flags;
+    internal MotionTaskFlagsWrapper Flags;
 
     /// <summary>Gets the operation version.</summary>
     [DebuggerHidden]
@@ -123,35 +123,35 @@ public struct TweenTaskCompletionSourceLightCore
 
     public void Activate()
     {
-        Flags.SetFlags(TweenTaskCompletionLightSourceFlags.Pooled);
+        Flags.SetFlags(SpringTaskCompletionLightSourceFlags.Pooled);
     }
 
     public void Deactivate()
     {
-        Flags.SetFlags(TweenTaskCompletionLightSourceFlags.Pooled);
+        Flags.SetFlags(SpringTaskCompletionLightSourceFlags.Pooled);
     }
 
-    public bool IsActive => Flags.HasFlags(TweenTaskCompletionLightSourceFlags.Pooled);
+    public bool IsActive => Flags.HasFlags(SpringTaskCompletionLightSourceFlags.Pooled);
 
     public bool IsPreserved
     {
-        get => Flags.HasFlags(TweenTaskCompletionLightSourceFlags.Preserved);
+        get => Flags.HasFlags(SpringTaskCompletionLightSourceFlags.Preserved);
         set
         {
             if (value)
             {
-                Flags.SetFlags(TweenTaskCompletionLightSourceFlags.Preserved);
+                Flags.SetFlags(SpringTaskCompletionLightSourceFlags.Preserved);
             }
             else
             {
-                Flags.ClearFlags(TweenTaskCompletionLightSourceFlags.Preserved);
+                Flags.ClearFlags(SpringTaskCompletionLightSourceFlags.Preserved);
             }
         }
     }
 
     internal void MarkHandled()
     {
-        Flags.ClearFlags(TweenTaskCompletionLightSourceFlags.HasHandledError);
+        Flags.ClearFlags(SpringTaskCompletionLightSourceFlags.HasHandledError);
     }
 
     [DebuggerHidden]
@@ -165,12 +165,12 @@ public struct TweenTaskCompletionSourceLightCore
         }
 
         error = null;
-        Flags = new TweenTaskFlagsWrapper((int)TweenTaskCompletionLightSourceFlags.Pooled);
+        Flags = new MotionTaskFlagsWrapper((int)SpringTaskCompletionLightSourceFlags.Pooled);
     }
 
     private void ReportUnhandledError()
     {
-        if (Flags.HasFlags(TweenTaskCompletionLightSourceFlags.HasHandledError))
+        if (Flags.HasFlags(SpringTaskCompletionLightSourceFlags.HasHandledError))
             try
             {
                 if (error is OperationCanceledException oc)
@@ -189,16 +189,16 @@ public struct TweenTaskCompletionSourceLightCore
 
     public bool HaveEvent
     {
-        get => Flags.HasFlags(TweenTaskCompletionLightSourceFlags.HasEvent);
+        get => Flags.HasFlags(SpringTaskCompletionLightSourceFlags.HasEvent);
         set
         {
             if (value)
             {
-                Flags.SetFlags(TweenTaskCompletionLightSourceFlags.HasEvent);
+                Flags.SetFlags(SpringTaskCompletionLightSourceFlags.HasEvent);
             }
             else
             {
-                Flags.ClearFlags(TweenTaskCompletionLightSourceFlags.HasEvent);
+                Flags.ClearFlags(SpringTaskCompletionLightSourceFlags.HasEvent);
             }
         }
     }
@@ -207,23 +207,22 @@ public struct TweenTaskCompletionSourceLightCore
     [DebuggerHidden]
     public bool TrySet()
     {
-        return Flags.TrySetFlags(TweenTaskCompletionLightSourceFlags.Done);
+        return Flags.TrySetFlags(SpringTaskCompletionLightSourceFlags.Done);
     }
 
     public void SetCanceledException(CancellationToken cancellationToken)
     {
-        Flags.SetFlags(TweenTaskCompletionLightSourceFlags.HasHandledError);
+        Flags.SetFlags(SpringTaskCompletionLightSourceFlags.HasHandledError);
         error = cancellationToken == CancellationToken.None
             ? defaultCancelledException
             : new OperationCanceledException(cancellationToken);
     }
 
-    public void RunContinuation(Action<object?, TweenEvent> continuation, object? continuationState,
-        TweenEvent tweenEvent)
+    public void RunContinuation(Action<object?> continuation, object? continuationState)
     {
         if (HaveEvent)
         {
-            continuation!(continuationState, tweenEvent);
+            continuation!(continuationState);
         }
         else
         {
@@ -236,13 +235,13 @@ public struct TweenTaskCompletionSourceLightCore
 
 
     /// <summary>Gets the status of the operation.</summary>
-    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    /// <param name="token">Opaque value that was provided to the <see cref="MotionTask" />'s constructor.</param>
     [DebuggerHidden]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ValueTaskSourceStatus GetStatus(object? continuation, short token)
     {
         ValidateToken(token);
-        return continuation == null || (!Flags.HasFlags(TweenTaskCompletionLightSourceFlags.Done))
+        return continuation == null || (!Flags.HasFlags(SpringTaskCompletionLightSourceFlags.Done))
             ? ValueTaskSourceStatus.Pending
             : error == null
                 ? ValueTaskSourceStatus.Succeeded
@@ -252,7 +251,7 @@ public struct TweenTaskCompletionSourceLightCore
     }
 
     /// <summary>Gets the result of the operation.</summary>
-    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    /// <param name="token">Opaque value that was provided to the <see cref="MotionTask" />'s constructor.</param>
     // [StackTraceHidden]
     [DebuggerHidden]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -260,12 +259,12 @@ public struct TweenTaskCompletionSourceLightCore
     {
         ValidateToken(token);
 
-        if (!Flags.HasFlags(TweenTaskCompletionLightSourceFlags.Done))
-            throw new InvalidOperationException("Not yet completed, TweenTask only allow to use await.");
+        if (!Flags.HasFlags(SpringTaskCompletionLightSourceFlags.Done))
+            throw new InvalidOperationException("Not yet completed, MotionTask only allow to use await.");
 
         if (error != null)
         {
-            Flags.ClearFlags(TweenTaskCompletionLightSourceFlags.HasHandledError);
+            Flags.ClearFlags(SpringTaskCompletionLightSourceFlags.HasHandledError);
             if (error is OperationCanceledException oce)
             {
                 if (oce == defaultCancelledException)
@@ -285,7 +284,7 @@ public struct TweenTaskCompletionSourceLightCore
     /// <summary>Schedules the continuation action for this operation.</summary>
     /// <param name="continuation">The continuation to invoke when the operation has completed.</param>
     /// <param name="state">The state object to pass to <paramref name="continuation" /> when it's invoked.</param>
-    /// <param name="token">Opaque value that was provided to the <see cref="TweenTask" />'s constructor.</param>
+    /// <param name="token">Opaque value that was provided to the <see cref="MotionTask" />'s constructor.</param>
     [DebuggerHidden]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void OnCompleted(Action<object> continuation, object state,
@@ -313,7 +312,7 @@ public struct TweenTaskCompletionSourceLightCore
         else
         {
             var wrapper = LightCallBackWrapper.Create(
-                Unsafe.As<Action<object?, TweenEvent>>(oldContinuation),
+                Unsafe.As<Action<object?,SpringEvent>>(oldContinuation),
                 contState!,
                 continuation,
                 state);
@@ -333,7 +332,7 @@ public struct TweenTaskCompletionSourceLightCore
         {
             // already running continuation in TrySet.
             // It will cause call OnCompleted multiple time, invalid.
-            if (!ReferenceEquals(oldContinuation, TweenTaskCompletionLightSourceCoreShared.s_sentinel))
+            if (!ReferenceEquals(oldContinuation, MotionTaskCompletionLightSourceCoreShared.s_sentinel))
             {
                 throw new InvalidOperationException(
                     "Already continuation registered, can not await twice or get Status after await.");
@@ -354,11 +353,11 @@ public struct TweenTaskCompletionSourceLightCore
 }
 
 internal static class
-    TweenTaskCompletionLightSourceCoreShared // separated out of generic to avoid unnecessary duplication
+    MotionTaskCompletionLightSourceCoreShared // separated out of generic to avoid unnecessary duplication
 {
-    internal static readonly Action<object?, TweenEvent> s_sentinel = CompletionSentinel;
+    internal static readonly Action<object?, SpringEvent> s_sentinel = CompletionSentinel;
 
-    private static void CompletionSentinel(object? _, TweenEvent @event) // named method to aid debugging
+    private static void CompletionSentinel(object? _, SpringEvent @event) // named method to aid debugging
     {
         throw new InvalidOperationException("The sentinel delegate should never be invoked.");
     }
@@ -367,7 +366,7 @@ internal static class
 internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
 {
     private static TaskPool<LightCallBackWrapper> pool;
-    public Action<object?, TweenEvent> Callback = null!;
+    public Action<object?, SpringEvent> Callback = null!;
     public Action<object> Continuation = null!;
     public object ContinuationState = null!;
     public object State = null!;
@@ -375,7 +374,7 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
     private LightCallBackWrapper? next = null;
     public ref LightCallBackWrapper? NextNode => ref next;
 
-    public static LightCallBackWrapper Create(Action<object?, TweenEvent> callback, object state,
+    public static LightCallBackWrapper Create(Action<object?, SpringEvent> callback, object state,
         Action<object> continuation, object continuationState)
     {
         if (!pool.TryPop(out var wrapper)) wrapper = new();
@@ -387,16 +386,16 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
         return wrapper;
     }
 
-    public static readonly Action<object?, TweenEvent> RunAction = static (w, e) =>
+    public static readonly Action<object?, SpringEvent> RunAction = static (w, e) =>
         Unsafe.As<LightCallBackWrapper>(w).Run(e);
 
-    public void Run(TweenEvent tweenEvent)
+    public void Run(SpringEvent SpringEvent)
     {
         var callback = Callback;
         var callbackState = State;
         var continuation = Continuation;
         var continuationState = ContinuationState;
-        if (tweenEvent.EventType is TweenEventType.Complete or TweenEventType.Cancel)
+        if (SpringEvent.EventType is SpringEventType.Complete or SpringEventType.Cancel)
         {
             Callback = null!;
             Continuation = null!;
@@ -407,7 +406,7 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
 
         try
         {
-            callback(callbackState, tweenEvent);
+            callback(callbackState, SpringEvent);
         }
         catch (Exception e)
         {
@@ -422,7 +421,7 @@ internal class LightCallBackWrapper : ITaskPoolNode<LightCallBackWrapper>
         }
         finally
         {
-            if (tweenEvent.EventType is TweenEventType.Complete or TweenEventType.Cancel)
+            if (SpringEvent.EventType is SpringEventType.Complete or SpringEventType.Cancel)
             {
                 continuation(continuationState);
             }

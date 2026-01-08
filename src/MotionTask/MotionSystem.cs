@@ -1,8 +1,8 @@
 using System;
 
-namespace TweenTasks;
+namespace MotionTasks;
 
-public static class TweenSystem
+public static class  MotionSystem
 {
     static Action<Exception> unhandledException = DefaultUnhandledExceptionHandler;
     public static FrameDeltaTimeProvider DefaultFrameDeltaTimeProvider { get; set; }

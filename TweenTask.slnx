@@ -2,5 +2,7 @@
     <Project Path="MustUseThisAnalyzer/MustUseThisAnalyzer/MustUseThisAnalyzer.csproj" />
     <Project Path="sandbox/ConsoleApp1/ConsoleApp1.csproj" />
     <Project Path="sandbox/MonoGameSample/MonoGameSample.csproj" />
+    <Project Path="src/MotionTask/MotionTask.csproj" />
+    <Project Path="src/SpringTasks/SpringTasks.csproj" />
     <Project Path="src/TweenTask/TweenTask.csproj" />
 </Solution>

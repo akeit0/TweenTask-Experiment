@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading;
-
+using MotionTasks;
 namespace TweenTasks.Internal;
 
 internal class SequencePromise : TweenPromise, IFrameDeltaTimeProviderWorkItem, ITaskPoolNode<SequencePromise>
@@ -135,7 +135,7 @@ internal class SequencePromise : TweenPromise, IFrameDeltaTimeProviderWorkItem, 
             }
             catch (Exception e)
             {
-                TweenSystem.GetUnhandledExceptionHandler()(e);
+                MotionSystem.GetUnhandledExceptionHandler()(e);
                 ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
 
                 return false;

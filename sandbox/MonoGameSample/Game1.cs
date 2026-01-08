@@ -10,6 +10,9 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using TweenTasks;
 using TweenTasks.Internal;
+using MotionTasks;
+using SpringTasks;
+using Vector2 = System.Numerics.Vector2;
 
 namespace MonoGameSample;
 
@@ -33,7 +36,8 @@ public class Game1 : Game
     private int MoveTweenCount { get; set; }
     private int DeletingCount { get; set; }
     private int TotalCount { get; set; }
-
+    Vector2SpringState springState;
+    SimpleSpriteObject? springObject;
     SimpleSpriteObject? seqObject;
     private TweenTask seqTask;
     private Vector2[] pathPoints;
@@ -81,11 +85,19 @@ public class Game1 : Game
 
     protected override void BeginRun()
     {
-        TweenSystem.DefaultFrameDeltaTimeProvider = provider;
+        MotionSystem.DefaultFrameDeltaTimeProvider = provider;
 
 
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
+
+        springObject = new SimpleSpriteObject(Texture)
+        {
+            Position = center,
+            Size = 50,
+            Color = Color.Red
+        };
+        springState = new Vector2SpringState(springObject.Position, default);
         pathPoints =
         [
             center,
@@ -96,7 +108,7 @@ public class Game1 : Game
             center
         ];
         spline = new Spline2D(pathPoints);
-        CreateSeq();
+        // CreateSeq();
         base.BeginRun();
     }
 
@@ -196,7 +208,17 @@ public class Game1 : Game
         provider.IncrementFrameCount();
         provider.Run(gameTime.ElapsedGameTime.TotalSeconds);
 
+        var mousePoint = Mouse.GetState().Position;
 
+        SpringAnimation.Evaluate(ref springState, gameTime.ElapsedGameTime.TotalSeconds,
+            new Vector2(mousePoint.X, mousePoint.Y),
+            new SpringConfig
+            {
+                Mass = 1,
+                Stiffness = 100,
+                Damping = 10
+            });
+        springObject?.Position = springState.Position;
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
         if (Keyboard.GetState().IsKeyDown(Keys.Space))
@@ -277,7 +299,6 @@ public class Game1 : Game
                         .WithOnEvent(this,
                             static (o, result) =>
                             {
-                               
                                 if (result.EventType == TweenEventType.LoopComplete)
                                 {
                                     Console.WriteLine(result.CompletedLoops);
@@ -388,6 +409,7 @@ public class Game1 : Game
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
         spriteBatch.Begin();
+        springObject?.Draw(spriteBatch);
         seqObject?.Draw(spriteBatch);
         foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
         if (seqObject != null)

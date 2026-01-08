@@ -1,4 +1,4 @@
-namespace TweenTasks;
+namespace MotionTasks;
 
 public interface ITaskPoolNode<T>
 {

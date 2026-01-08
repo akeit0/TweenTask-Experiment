@@ -29,9 +29,9 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace TweenTasks.Internal
+namespace MotionTasks.Internal
 {
-    internal class ExceptionHolder
+    public class ExceptionHolder
     {
         private readonly ExceptionDispatchInfo exception;
         private bool calledGet;

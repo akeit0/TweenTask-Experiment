@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace TweenTasks;
+namespace MotionTasks;
 
 internal static class TimeProviderExtensions
 {

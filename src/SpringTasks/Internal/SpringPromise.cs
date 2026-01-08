@@ -3,19 +3,17 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks.Sources;
 using MotionTasks;
-namespace TweenTasks.Internal;
+namespace SpringTasks.Internal;
 
-internal abstract class TweenPromise : IValueTaskSource, IReturnable
+internal abstract class SpringPromise : IValueTaskSource, IReturnable
 {
     protected CancellationToken CancellationToken;
-    protected TweenTaskCompletionSourceLightCore Core;
-    protected Action<object?, TweenEvent>? EventCallback;
+    protected MotionTaskCompletionSourceLightCore Core;
+    protected Action<object?, SpringEvent>? EventCallback;
     protected object? EventState;
     protected double Delay;
     protected double Duration;
     protected int LoopCount;
-    protected LoopType LoopType;
-    protected Ease Ease;
     public double PlaybackSpeed;
     protected object? State;
     public double Time;
@@ -25,8 +23,6 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         get => Core.IsPreserved;
         set => Core.IsPreserved = value;
     }
-
-    public abstract void SetTime(double time);
 
     public short Version => Core.Version;
 
@@ -42,7 +38,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         }
     }
 
-    protected void ReturnWithContinuation(TweenEvent tweenEvent)
+    protected void ReturnWithContinuation(SpringEvent MotionEvent)
     {
         var lastEventCallback = EventCallback;
 
@@ -57,11 +53,11 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
             }
             else
             {
-                if (tweenEvent.EventType == TweenEventType.Cancel)
+                if (MotionEvent.EventType == SpringEventType.Cancel)
                 {
                     var token = CancellationToken;
                     if (token.IsCancellationRequested ||
-                        Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.ThrowOnManuallyCanceled))
+                        Core.Flags.HasFlags(SpringTaskCompletionLightSourceFlags.ThrowOnManuallyCanceled))
                     {
                         Core.SetCanceledException(token.IsCancellationRequested
                             ? token
@@ -73,7 +69,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
             if (lastEventCallback == null) return;
             if (hasEvent)
             {
-                lastEventCallback!(lastState, tweenEvent);
+                lastEventCallback!(lastState, MotionEvent);
             }
             else
             {
@@ -93,7 +89,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
         try
         {
             Core.OnCompleted(continuation, state, token,
-                ref Unsafe.As<Action<object?, TweenEvent>?, Action<object>?>(ref EventCallback), ref EventState);
+                ref Unsafe.As<Action<object?, SpringEvent>?, Action<object>?>(ref EventCallback), ref EventState);
         }
         catch (Exception e)
         {
@@ -107,7 +103,7 @@ internal abstract class TweenPromise : IValueTaskSource, IReturnable
     {
         if (Core.Version != token) return false;
         Core.Deactivate();
-        ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));
+        ReturnWithContinuation(new SpringEvent(SpringEventType.Cancel));
         return true;
     }
 

@@ -13,5 +13,4 @@ public interface ITweenAdapter<T>
     void ApplyFrom(T from,bool isRelative){}
 }
 
-public interface IRelativeAdapter<T>;
 public interface ITweenFromAdapter<T>:ITweenAdapter<T> ;

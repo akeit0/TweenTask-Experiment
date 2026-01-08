@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace Cysharp.Threading.Tasks.Internal
 {
     // optimized version of Standard Queue<T>.
-    internal class MinimumQueue<T>
+    public class MinimumQueue<T>
     {
         const int MinimumGrow = 4;
         const int GrowFactor = 200;

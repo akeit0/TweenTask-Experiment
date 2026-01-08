@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
-
+using MotionTasks;
 namespace TweenTasks.Internal;
 
 internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProviderWorkItem,
@@ -139,7 +139,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         }
         catch (Exception e)
         {
-            TweenSystem.GetUnhandledExceptionHandler()(e);
+            MotionSystem.GetUnhandledExceptionHandler()(e);
         }
 
 
@@ -233,7 +233,7 @@ internal class TweenPromise<T, TAdapter> : TweenPromise, IFrameDeltaTimeProvider
         }
         catch (Exception e)
         {
-            TweenSystem.GetUnhandledExceptionHandler()(e);
+            MotionSystem.GetUnhandledExceptionHandler()(e);
             if (Core.Flags.HasFlags(TweenTaskCompletionLightSourceFlags.CancelOnError))
             {
                 ReturnWithContinuation(new TweenEvent(TweenEventType.Cancel));

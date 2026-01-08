@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace TweenTasks;
+namespace MotionTasks;
 
 public sealed class TimerFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDisposable
 {
@@ -87,7 +87,7 @@ public sealed class TimerFrameDeltaTimeProvider : FrameDeltaTimeProvider, IDispo
                         self.list.Remove(i);
                         try
                         {
-                            TweenSystem.GetUnhandledExceptionHandler().Invoke(ex);
+                            MotionSystem.GetUnhandledExceptionHandler().Invoke(ex);
                         }
                         catch
                         {

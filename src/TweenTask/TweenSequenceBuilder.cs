@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using System.Threading;
 using TweenTasks.Internal;
-
+using MotionTasks;
 namespace TweenTasks;
 
 [MustUseThis("Schedule or Build")]
@@ -44,7 +44,7 @@ public readonly struct TweenSequenceBuilder
     public TweenTask Schedule(CancellationToken cancellationToken = default)
     {
         Validate();
-        return buffer.Schedule(TweenSystem.DefaultFrameDeltaTimeProvider,cancellationToken);
+        return buffer.Schedule(MotionSystem.DefaultFrameDeltaTimeProvider,cancellationToken);
     }
     
     public TweenTask Schedule(FrameDeltaTimeProvider provider,CancellationToken cancellationToken = default)
