@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using MotionTasks;
+
 namespace SpringTasks.Internal;
 
 internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProviderWorkItem,
@@ -10,15 +11,18 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
 {
     private static TaskPool<SpringPromise<T, TAdapter>> pool;
     private Action<object?, T>? action;
+    private object? gettterState;
+    private Func<object?, T>? toGetter;
     private TAdapter adapter = default!;
 
     private SpringPromise<T, TAdapter>? next;
     ref SpringPromise<T, TAdapter>? ITaskPoolNode<SpringPromise<T, TAdapter>>.NextNode => ref next;
 
 
-    public static SpringPromise<T, TAdapter> Create(double delay, double duration, int loopCount,
+    public static SpringPromise<T, TAdapter> Create(
         TAdapter adapter,
-        Action<object?, T>? action, object? state, Action<object?, SpringEvent>? endCallback, object? endState,
+        Action<object?, T>? action,  object? state,Func<object?, T>? toGetter, object?getterState,
+        Action<object?, SpringEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, SpringTaskSettingFlags flags, out short token)
     {
         if (!pool.TryPop(out var promise))
@@ -26,10 +30,9 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
             promise = new();
         }
 
-        promise.Delay = delay;
-        promise.Duration = duration;
-        promise.LoopCount = loopCount;
         promise.action = action;
+        promise.gettterState = getterState;
+        promise.toGetter = toGetter;
         promise.State = state;
         promise.EventCallback = endCallback;
         promise.EventState = endState;
@@ -39,7 +42,6 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
         promise.Core.Activate();
 
         if (endCallback != null) promise.Core.HaveEvent = true;
-        promise.Time = 0;
         token = promise.Core.Version;
         return promise;
     }
@@ -49,12 +51,16 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
     {
         if (!Core.IsActive) return false;
         var deltaTime = frameInfo.DeltaTime;
-        Time += PlaybackSpeed * deltaTime;
         if (CancellationToken.IsCancellationRequested)
         {
             ReturnWithContinuation(new SpringEvent(SpringEventType.Cancel));
 
             return false;
+        }
+
+        if (toGetter != null)
+        {
+            adapter.ApplyTo(toGetter(gettterState)!);
         }
 
         try
@@ -72,7 +78,7 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
             }
         }
 
-        if (adapter.IsCompleted) return true;
+        if (!adapter.IsCompleted) return true;
 
         ReturnWithContinuation(new SpringEvent(SpringEventType.Complete));
 

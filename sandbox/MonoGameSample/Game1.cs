@@ -98,6 +98,7 @@ public class Game1 : Game
             Color = Color.Red
         };
         springState = new Vector2SpringState(springObject.Position, default);
+        Follow(springObject);
         pathPoints =
         [
             center,
@@ -208,17 +209,17 @@ public class Game1 : Game
         provider.IncrementFrameCount();
         provider.Run(gameTime.ElapsedGameTime.TotalSeconds);
 
-        var mousePoint = Mouse.GetState().Position;
+        //var mousePoint = Mouse.GetState().Position;
 
-        SpringAnimation.Evaluate(ref springState, gameTime.ElapsedGameTime.TotalSeconds,
-            new Vector2(mousePoint.X, mousePoint.Y),
-            new SpringConfig
-            {
-                Mass = 1,
-                Stiffness = 100,
-                Damping = 10
-            });
-        springObject?.Position = springState.Position;
+        // SpringAnimation.Evaluate(ref springState, gameTime.ElapsedGameTime.TotalSeconds,
+        //     new Vector2(mousePoint.X, mousePoint.Y),
+        //     new SpringConfig
+        //     {
+        //         Mass = 1,
+        //         Stiffness = 100,
+        //         Damping = 10
+        //     });
+        // springObject?.Position = springState.Position;
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
         if (Keyboard.GetState().IsKeyDown(Keys.Space))
@@ -364,7 +365,43 @@ public class Game1 : Game
         base.Update(gameTime);
     }
 
-
+    private async void Follow(SimpleSpriteObject obj)
+    {
+        while (obj.CancellationToken.IsCancellationRequested == false)
+        {
+            var mousePoint = Mouse.GetState().Position;
+            var target = new Vector2(mousePoint.X, mousePoint.Y);
+            await new SpringToBuilderEntry<Vector2,Vector2SpringAdapter>(new Vector2SpringAdapter(target,
+                new SpringConfig
+                    {
+                        Mass = 1,
+                        Stiffness = 100,
+                        Damping = 10,
+                        PositionEpsilon = 1,
+                        VelocityEpsilon = 1f
+                    }))
+                .Bind(obj, static (o) =>
+                {
+                    return o.Position;
+                }, static (o, v) =>
+                {
+                    o.Position = v;
+                }).WithToGetter(this,static (_)=>
+                {
+                    var mousePoint = Mouse.GetState().Position;
+                    return new Vector2(mousePoint.X, mousePoint.Y);
+                }).WithCancellationToken(obj.CancellationToken)
+                .Schedule();
+            soundFx.PlayWave(220, 200,
+                WaveType.Square,
+                0.04f);
+            Console.WriteLine("Moved to " + target);
+            await TweenTask.Create(0,1,0.6).Bind(obj,static(o,v)=>{})
+                .WithCancellationToken(obj.CancellationToken)
+                .Schedule();
+        }
+        
+    }
     private async void Delete(SimpleSpriteObject obj)
     {
         try

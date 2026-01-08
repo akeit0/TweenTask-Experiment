@@ -12,6 +12,9 @@ public interface ISpringAdapter<T>
     void ApplyFrom(T from, bool isRelative)
     {
     }
+
+    void ApplyTo(T to);
+
 }
 
 public interface ISpringAdapter<in TOption, T> : ISpringAdapter<T>
@@ -20,7 +23,7 @@ public interface ISpringAdapter<in TOption, T> : ISpringAdapter<T>
 }
 
 public struct Vector2SpringAdapter(Vector2 from, Vector2 to, SpringConfig config)
-    : ISpringAdapter<Vector2>
+    : ISpringFromAdapter<Vector2>
 {
     public Vector2 From = from;
     Vector2 ISpringAdapter<Vector2>.From => From;
@@ -47,15 +50,21 @@ public struct Vector2SpringAdapter(Vector2 from, Vector2 to, SpringConfig config
     }
 
     public bool IsCompleted =>
-        Vector2.DistanceSquared(Current, To) < config.PositionEpsilon * config.PositionEpsilon
-        && (_velocity.LengthSquared()) < config.VelocityEpsilon * config.VelocityEpsilon;
+        Vector2.DistanceSquared(Current, To) <config.PositionEpsilon * config.PositionEpsilon
+        && (_velocity.LengthSquared()) < config.VelocityEpsilon * config.VelocityEpsilon
+        ;
 
     public void ApplyFrom(Vector2 from, bool isRelative)
     {
         From = from;
+        Current = from;
         if (isRelative)
         {
             To += from;
         }
+    }
+    public void ApplyTo(Vector2 to)
+    {
+        To = to;
     }
 }

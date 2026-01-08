@@ -11,12 +11,8 @@ internal abstract class SpringPromise : IValueTaskSource, IReturnable
     protected MotionTaskCompletionSourceLightCore Core;
     protected Action<object?, SpringEvent>? EventCallback;
     protected object? EventState;
-    protected double Delay;
-    protected double Duration;
-    protected int LoopCount;
     public double PlaybackSpeed;
     protected object? State;
-    public double Time;
 
     public bool IsPreserved
     {
