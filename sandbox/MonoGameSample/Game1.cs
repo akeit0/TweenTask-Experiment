@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -37,9 +38,9 @@ public class Game1 : Game
     private int MoveTweenCount { get; set; }
     private int DeletingCount { get; set; }
     private int TotalCount { get; set; }
-    Vector2SpringState springState;
     SimpleSpriteObject? springObject;
     SimpleSpriteObject? seqObject;
+    SimpleSpriteObject? hoverObject;
     private TweenTask seqTask;
     private Vector2[] pathPoints;
     Spline2D spline;
@@ -82,7 +83,7 @@ public class Game1 : Game
         BoxTexture = new(graphics.GraphicsDevice, 1, 1);
         BoxTexture.SetData([Color.White]);
         hudFont = Content.Load<SpriteFont>("Fonts/Hud");
-        Texture =Content.Load<Texture2D>("Textures/circle");
+        Texture = Content.Load<Texture2D>("Textures/circle");
     }
 
     protected override void BeginRun()
@@ -99,8 +100,16 @@ public class Game1 : Game
             Size = 50,
             Color = Color.White
         };
-        springState = new Vector2SpringState(springObject.Position, default);
-        Follow(springObject);
+
+        Follow(springObject).Forget();
+
+        hoverObject = new SimpleSpriteObject(Texture)
+        {
+            Position = center + new Vector2(-200, -100),
+            Size = 50,
+            Color = Color.MediumPurple
+        };
+        Hover(hoverObject).Forget();
         pathPoints =
         [
             center,
@@ -210,18 +219,6 @@ public class Game1 : Game
         UpdateKeyStates();
         provider.IncrementFrameCount();
         provider.Run(gameTime.ElapsedGameTime.TotalSeconds);
-
-        //var mousePoint = Mouse.GetState().Position;
-
-        // SpringAnimation.Evaluate(ref springState, gameTime.ElapsedGameTime.TotalSeconds,
-        //     new Vector2(mousePoint.X, mousePoint.Y),
-        //     new SpringConfig
-        //     {
-        //         Mass = 1,
-        //         Stiffness = 100,
-        //         Damping = 10
-        //     });
-        // springObject?.Position = springState.Position;
         var bounds = Window.ClientBounds;
         var center = new Vector2(bounds.Width / 2f, bounds.Height / 2f);
         if (Keyboard.GetState().IsKeyDown(Keys.Space))
@@ -367,71 +364,144 @@ public class Game1 : Game
         base.Update(gameTime);
     }
 
-    private async void Follow(SimpleSpriteObject obj)
+    private async UniTaskVoid Follow(SimpleSpriteObject obj)
     {
-        var followState = new StrongBox<(SimpleSpriteObject Obj, float TargetPos, bool Held)>();
-        followState.Value.Obj = obj;
-        obj.Position = new Vector2(300, 300);
-
-        while (obj.CancellationToken.IsCancellationRequested == false)
+        try
         {
-            await MotionTask.WaitWhile(obj, (o) =>
+            var followState = new StrongBox<(SimpleSpriteObject Obj, float TargetPos, bool Held)>();
+            followState.Value.Obj = obj;
+            obj.Position = new Vector2(300, 300);
+
+            while (obj.CancellationToken.IsCancellationRequested == false)
+            {
+                await MotionTask.WaitWhile(obj, o =>
+                {
+                    var mouseState = Mouse.GetState();
+                    if (mouseState.LeftButton == ButtonState.Released) return true;
+                    return Vector2.Distance(((SimpleSpriteObject)o!).Position, mouseState.PositionVector2) > 30f;
+                });
+                var from = obj.Position.X;
+                var to = obj.Position.X > 400 ? 300 : 500;
+                followState.Value.TargetPos = obj.Position.X > 400 ? 300 : 500;
+                await new SpringBuilderEntry<float, FloatSpringAdapter>(new(from, to,
+                        new SpringConfig(frequency: 20, dampingRatio: 1f)
+                        {
+                            PositionEpsilon = 0,
+                            VelocityEpsilon = 10
+                        }))
+                    .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
+                    .WithModifier(
+                        followState, static (box, ref adapter) =>
+                        {
+                            var mouseState = Mouse.GetState();
+                            ref var state = ref box.Value;
+                            ref var held = ref state.Held;
+                            if (mouseState.LeftButton == ButtonState.Pressed)
+                            {
+                                var mouseVec = mouseState.PositionVector2;
+                                if (!held && Vector2.Distance(state.Obj.Position with { X = adapter.Current },
+                                        mouseVec) > 30f)
+                                {
+                                    return;
+                                }
+
+                                adapter.Config.Frequency = 40;
+                                adapter.Config.PositionEpsilon = 0;
+                                adapter.To = mouseVec.X;
+                                held = true;
+                            }
+                            else if (held)
+                            {
+                                var targetPos = state.TargetPos;
+                                adapter.Config.Frequency = 20;
+                                adapter.Config.PositionEpsilon = 1;
+                                adapter.To =
+                                    Math.Abs(adapter.Current - targetPos) < Math.Abs(adapter.Current - adapter.From)
+                                        ? state.TargetPos
+                                        : adapter.From;
+
+                                held = false;
+                            }
+                        })
+                    .WithCancellationToken(obj.CancellationToken)
+                    .Schedule();
+
+                if (Math.Abs(obj.Position.X - to) < Math.Abs(obj.Position.X - from))
+                {
+                    obj.Color = obj.Position.X < 400 ? Color.White : Color.LimeGreen;
+                    await new SpringBuilderEntry<float, FloatSpringAdapter>(new(to, to,
+                            new SpringConfig(frequency: 80, dampingRatio: 0.3f)
+                            {
+                                PositionEpsilon = 1,
+                                VelocityEpsilon = 10
+                            }) { Velocity = 500 })
+                        .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
+                        .WithCancellationToken(obj.CancellationToken)
+                        .Schedule();
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            throw; // TODO 例外の処理
+        }
+    }
+
+    private async UniTaskVoid Hover(SimpleSpriteObject obj)
+    {
+        try
+        {
+            const float baseSize = 50;
+            const float hoverSize = 70;
+            const float pressedSize = 40;
+
+            static float GetTargetSize(SimpleSpriteObject obj)
             {
                 var mouseState = Mouse.GetState();
-                if (mouseState.LeftButton == ButtonState.Released) return true;
-                return Vector2.Distance(((SimpleSpriteObject)o!).Position, mouseState.PositionVector2) > 30f;
-            });
-            var from = obj.Position.X;
-            var to = obj.Position.X > 400 ? 300 : 500;
-            followState.Value.TargetPos = obj.Position.X > 400 ? 300 : 500;
-            await new SpringBuilderEntry<float, FloatSpringAdapter>(new(from, to,
-                    new SpringConfig(frequency: 10, dampingRatio: 1f)
-                    {
-                        PositionEpsilon = 0,
-                        VelocityEpsilon = 10
-                    }))
-                .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
-                .WithModifier(
-                    followState, static (box, ref adapter) =>
-                    {
-                        var mouseState = Mouse.GetState();
-                        ref var state = ref box.Value;
-                        ref var held = ref state.Held;
-                        if (mouseState.LeftButton == ButtonState.Pressed)
-                        {
-                            var mouseVec = mouseState.PositionVector2;
-                            if (!held && Vector2.Distance(state.Obj.Position with { X = adapter.Current },
-                                    mouseVec) > 30f)
-                            {
-                                return;
-                            }
+                obj.Color = Color.MediumPurple;
+                if (Vector2.Distance(obj.Position, mouseState.PositionVector2) >= obj.Size / 2)
+                {
+                    return baseSize;
+                }
 
-                            adapter.Config.Frequency = 40;
-                            adapter.Config.PositionEpsilon = 0;
-                            adapter.To = mouseVec.X;
-                            held = true;
-                        }
-                        else if (held)
-                        {
-                            var targetPos = state.TargetPos;
-                            adapter.Config.Frequency = 10;
-                            adapter.Config.PositionEpsilon = 1;
-                            adapter.To =
-                                Math.Abs(adapter.Current - targetPos) < Math.Abs(adapter.Current - adapter.From)
-                                    ? state.TargetPos
-                                    : adapter.From;
-
-                            held = false;
-                        }
-                    })
-                .WithCancellationToken(obj.CancellationToken)
-                .Schedule();
-
-            if (Math.Abs(obj.Position.X - to) < Math.Abs(obj.Position.X - from))
-            {
-                await obj.TweenRotationTo(MathF.PI / 2, 0.2).WithRelative().Schedule();
-                obj.Color = obj.Position.X < 400 ? Color.White : Color.LimeGreen;
+                if (mouseState.LeftButton == ButtonState.Pressed)
+                {
+                    obj.Color *= 0.8f;
+                    return pressedSize;
+                }
+                else
+                {
+                    obj.Color *= 1.2f;
+                    return hoverSize;
+                }
             }
+
+            while (obj.CancellationToken.IsCancellationRequested == false)
+            {
+                await MotionTask.WaitWhile(obj, obj.Size switch
+                {
+                    < baseSize => o =>
+                        GetTargetSize(o) < baseSize,
+                    < hoverSize => o =>
+                        GetTargetSize(o) < hoverSize,
+                    _ => o =>
+                        GetTargetSize(o) >= hoverSize,
+                });
+                await SpringTask.Create(obj.Size, 50, config: new(frequency: 20, dampingRatio: 0.65f)
+                    {
+                        PositionEpsilon = 1,
+                        VelocityEpsilon = 10
+                    })
+                    .Bind(obj, static (o, v) => o.Size = v)
+                    .WithModifier(
+                        obj, static (obj, ref adapter) => { adapter.To = GetTargetSize(obj); })
+                    .WithCancellationToken(obj.CancellationToken)
+                    .Schedule();
+            }
+        }
+        catch (Exception e)
+        {
+            throw; // TODO 例外の処理
         }
     }
 
@@ -477,9 +547,9 @@ public class Game1 : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.CornflowerBlue);
+        GraphicsDevice.Clear(Color.White * 0.1f);
         spriteBatch.Begin();
-       
+
         seqObject?.Draw(spriteBatch);
         foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
         if (seqObject != null)
@@ -498,6 +568,7 @@ public class Game1 : Game
         //     $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
         //     new Vector2(0, 50),
         //     Color.White);
+        hoverObject?.Draw(spriteBatch);
         springObject?.Draw(spriteBatch);
         spriteBatch.End();
         base.Draw(gameTime);
@@ -513,7 +584,7 @@ public static class TweenExtensions
         {
             return TweenBuilder
                 .CreateToEntry<Vector2, Vector2TweenAdapter>(new(position), duration)
-                .Bind(obj, static (obj) => obj.Position,
+                .Bind(obj, static obj => obj.Position,
                     static (obj, v) => obj.Position = v).WithCancellationToken(obj.CancellationToken);
         }
 
@@ -528,7 +599,7 @@ public static class TweenExtensions
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Size, static (obj, v) => obj.Size = v)
+                .Bind(obj, static obj => obj.Size, static (obj, v) => obj.Size = v)
                 .WithCancellationToken(obj.CancellationToken);
         }
 
@@ -536,7 +607,7 @@ public static class TweenExtensions
         {
             return TweenBuilder
                 .CreateToEntry<float, FloatTweenAdapter>(new(to), duration)
-                .Bind(obj, static (obj) => obj.Rotation,
+                .Bind(obj, static obj => obj.Rotation,
                     static (obj, v) => obj.Rotation = v)
                 .WithCancellationToken(obj.CancellationToken);
         }
@@ -629,7 +700,7 @@ public class SimpleSpriteObject : IDisposable
             Position - Size / MathF.Sqrt(2) * new Vector2(MathF.Cos(Rotation + baseRot), MathF.Sin(Rotation + baseRot)),
             null,
             Color,
-            rot, default, Size/Texture.Width,
+            rot, default, Size / Texture.Width,
             SpriteEffects.None, 0.00001f);
     }
 }

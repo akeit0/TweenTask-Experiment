@@ -12,7 +12,7 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
     private static TaskPool<SpringPromise<T, TAdapter>> pool;
     private Action<object?, T>? action;
     private object? modifierState;
-    private AdapterModifier<TAdapter,object?>? modifier;
+    private AdapterModifier<TAdapter, object?>? modifier;
     private TAdapter adapter = default!;
 
     private SpringPromise<T, TAdapter>? next;
@@ -21,7 +21,7 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
 
     public static SpringPromise<T, TAdapter> Create(
         TAdapter adapter,
-        Action<object?, T>? action,  object? state,AdapterModifier<TAdapter,object?>? modifier, object?modifierState,
+        Action<object?, T>? action, object? state, AdapterModifier<TAdapter, object?>? modifier, object? modifierState,
         Action<object?, SpringEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, SpringTaskSettingFlags flags, out short token)
     {
@@ -60,12 +60,20 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
 
         if (modifier != null)
         {
-            modifier( modifierState!, ref adapter);
+            modifier(modifierState!, ref adapter);
         }
 
+        var isCompleted = false;
         try
         {
-            action?.Invoke(State, adapter.Evaluate(deltaTime));
+            var result = adapter.Evaluate(deltaTime);
+            if (adapter.IsCompleted)
+            {
+                isCompleted = true;
+                result = adapter.Complete();
+            }
+
+            action?.Invoke(State, result);
         }
         catch (Exception e)
         {
@@ -78,7 +86,7 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
             }
         }
 
-        if (!adapter.IsCompleted) return true;
+        if (!isCompleted) return true;
 
         ReturnWithContinuation(new SpringEvent(SpringEventType.Complete));
 

@@ -7,7 +7,10 @@ namespace SpringTasks;
 
 public readonly struct SpringTask : IEquatable<SpringTask>
 {
-
+    public static SpringBuilderEntry<float, FloatSpringAdapter> Create(float from, float to, SpringConfig config)
+    {
+        return new SpringBuilderEntry<float, FloatSpringAdapter>(new FloatSpringAdapter(from, to, config));
+    }
     internal readonly SpringPromise Promise;
     private readonly short token;
 

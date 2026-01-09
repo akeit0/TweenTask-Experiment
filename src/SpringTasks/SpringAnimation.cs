@@ -323,7 +323,7 @@ namespace SpringTasks
             ref float position,
             ref float velocity,
             float t,
-            float to,
+            float  to,
             float w0,
             float zeta)
         {

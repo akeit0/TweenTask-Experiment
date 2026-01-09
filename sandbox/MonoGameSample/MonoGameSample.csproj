@@ -17,6 +17,7 @@
         <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
         <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.4.1" />
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+        <PackageReference Include="UniTask" Version="2.5.10" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\src\SpringTasks\SpringTasks.csproj" />

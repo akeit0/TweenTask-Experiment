@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Sources;
@@ -8,10 +9,11 @@ namespace MotionTasks;
 
 public struct MotionTask
 {
-    public static ValueTask WaitWhile(object? state, Func<object?, bool> predicate,
-        CancellationToken cancellationToken = default)
+    public static ValueTask WaitWhile<TState>(TState state, Func<TState, bool> predicate,
+        CancellationToken cancellationToken = default) where TState : class?
     {
-        var promise = WaitWhilePromise.Create(state, predicate, cancellationToken, out var token);
+        var promise = WaitWhilePromise.Create(state, Unsafe.As<Func<object?, bool>>(predicate), cancellationToken,
+            out var token);
         MotionSystem.DefaultFrameDeltaTimeProvider.Register(promise);
         return new ValueTask(promise, token);
     }
