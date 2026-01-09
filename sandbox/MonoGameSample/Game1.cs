@@ -31,6 +31,7 @@ public class Game1 : Game
 
     private bool spacePressed;
     private bool jKeyPressed;
+    public Texture2D BoxTexture;
     public Texture2D Texture;
     private SpriteFont hudFont;
     private int MoveTweenCount { get; set; }
@@ -78,9 +79,10 @@ public class Game1 : Game
     {
         spriteBatch = new(GraphicsDevice);
         soundFx = new();
-        Texture = new(graphics.GraphicsDevice, 1, 1);
+        BoxTexture = new(graphics.GraphicsDevice, 1, 1);
+        BoxTexture.SetData([Color.White]);
         hudFont = Content.Load<SpriteFont>("Fonts/Hud");
-        Texture.SetData([Color.White]);
+        Texture =Content.Load<Texture2D>("Textures/circle");
     }
 
     protected override void BeginRun()
@@ -477,7 +479,7 @@ public class Game1 : Game
     {
         GraphicsDevice.Clear(Color.CornflowerBlue);
         spriteBatch.Begin();
-        springObject?.Draw(spriteBatch);
+       
         seqObject?.Draw(spriteBatch);
         foreach (var spriteObject in spriteObjects) spriteObject.Draw(spriteBatch);
         if (seqObject != null)
@@ -487,7 +489,7 @@ public class Game1 : Game
                 Color.White);
         }
 
-        spriteBatch.Draw(Texture, new Vector2(400, 0), null,
+        spriteBatch.Draw(BoxTexture, new Vector2(400, 0), null,
             Color.White,
             0, default, new Vector2(1, 500),
             SpriteEffects.None, 0.00001f);
@@ -496,7 +498,7 @@ public class Game1 : Game
         //     $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
         //     new Vector2(0, 50),
         //     Color.White);
-
+        springObject?.Draw(spriteBatch);
         spriteBatch.End();
         base.Draw(gameTime);
     }
@@ -541,7 +543,7 @@ public static class TweenExtensions
     }
 }
 
-static class XNAVector2Extensions
+static class XnaVector2Extensions
 {
     extension(MouseState state)
     {
@@ -627,7 +629,7 @@ public class SimpleSpriteObject : IDisposable
             Position - Size / MathF.Sqrt(2) * new Vector2(MathF.Cos(Rotation + baseRot), MathF.Sin(Rotation + baseRot)),
             null,
             Color,
-            rot, default, Size,
+            rot, default, Size/Texture.Width,
             SpriteEffects.None, 0.00001f);
     }
 }

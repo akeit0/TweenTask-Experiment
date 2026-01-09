@@ -19,4 +19,8 @@
 /processorParam:PremultiplyAlpha=True
 /processorParam:TextureFormat=Compressed
 /build:Fonts/Hud.spritefont
-
+#end Fonts/Hud.spritefont
+#begin Textures/circle.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Textures/circle.png
