@@ -476,7 +476,7 @@ public class Game1 : Game
                 }
             }
 
-            while (obj.CancellationToken.IsCancellationRequested == false)
+            while (!obj.CancellationToken.IsCancellationRequested)
             {
                 await MotionTask.WaitWhile(obj, obj.Size switch
                 {
@@ -494,7 +494,7 @@ public class Game1 : Game
                     })
                     .Bind(obj, static (o, v) => o.Size = v)
                     .WithModifier(
-                        obj, static (obj, ref adapter) => { adapter.To = GetTargetSize(obj); })
+                        obj, static (obj, ref adapter) => adapter.To = GetTargetSize(obj))
                     .WithCancellationToken(obj.CancellationToken)
                     .Schedule();
             }
