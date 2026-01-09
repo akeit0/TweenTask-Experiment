@@ -36,11 +36,11 @@ public static class SpringBuilderExtension
             return builder;
         }
         
-        public SpringBuilder<TValue, TAdapter> WithToGetter<TState>(TState state,Func<TState,TValue> callback) where  TState : class
+        public SpringBuilder<TValue, TAdapter> WithModifier<TState>(TState state,AdapterModifier<TAdapter,TState> callback) where  TState : class
         {
             builder.Validate();
             builder.Buffer.ToGetterState = state;
-            builder.Buffer.ToGetter = Unsafe.As<Func<object?, TValue>>(callback);
+            builder.Buffer.Modifier = Unsafe.As<AdapterModifier<TAdapter,object?>>(callback);
             return builder;
         } 
     }

@@ -5,64 +5,6 @@ namespace SpringTasks
 {
     public static class SpringAnimation
     {
-        public static void Evaluate(ref Vector2 position, ref Vector2 velocity, double t, Vector2 to,
-            SpringConfig config)
-        {
-            var resultX = Evaluate(
-                t,
-                position.X,
-                to.X,
-                velocity.X,
-                config.Mass,
-                config.Stiffness,
-                config.Damping);
-            var resultY = Evaluate(
-                t,
-                position.Y,
-                to.Y,
-                velocity.Y,
-                config.Mass,
-                config.Stiffness,
-                config.Damping);
-            position = new Vector2((float)resultX.Position, (float)resultY.Position);
-            velocity = new Vector2((float)resultX.Velocity, (float)resultY.Velocity);
-        }
-
-        public static void Evaluate(ref Vector2SpringState state, double t, Vector2 to, SpringConfig config)
-        {
-            var resultX = Evaluate(
-                t,
-                state.Position.X,
-                to.X,
-                state.Velocity.X,
-                config.Mass,
-                config.Stiffness,
-                config.Damping);
-            var resultY = Evaluate(
-                t,
-                state.Position.Y,
-                to.Y,
-                state.Velocity.Y,
-                config.Mass,
-                config.Stiffness,
-                config.Damping);
-            state = new Vector2SpringState(
-                new Vector2((float)resultX.Position, (float)resultY.Position),
-                new Vector2((float)resultX.Velocity, (float)resultY.Velocity));
-        }
-
-        public static void Evaluate(ref SpringState state, double t, double to, SpringConfig config)
-        {
-            state = Evaluate(
-                t,
-                state.Position,
-                to,
-                state.Velocity,
-                config.Mass,
-                config.Stiffness,
-                config.Damping);
-        }
-
         /// <summary>
         /// Mass-Spring-Damper の解析解で、時刻 t の位置と速度を返す。
         /// 方程式: m x'' + c x' + k (x - target) = 0
@@ -282,6 +224,106 @@ namespace SpringTasks
             ref Vector2 velocity,
             float t,
             Vector2 to,
+            float w0,
+            float zeta)
+        {
+            if (t < 0) t = 0;
+
+            // y = x - to（target からの偏差）に変換すると:
+            // m y'' + c y' + k y = 0
+            var y0 = position - to;
+            var v0 = velocity;
+
+
+            const float eps = 1e-12f;
+
+            // アンダーダンプ
+            if (zeta < 1.0 - 1e-9)
+            {
+                float wd = w0 * MathF.Sqrt(1.0f - zeta * zeta); // 減衰固有角周波数
+                float exp = MathF.Exp(-zeta * w0 * t);
+
+                // y(t) = e^{-ζω0 t} [ A cos(wd t) + B sin(wd t) ]
+                // A = y0
+                // y'(0) = v0 = -ζω0 A + wd B  => B = (v0 + ζω0 A) / wd
+                var A = y0;
+                var B = (v0 + zeta * w0 * A) / wd;
+
+                float cos = MathF.Cos(wd * t);
+                float sin = MathF.Sin(wd * t);
+
+                var y = exp * (A * cos + B * sin);
+
+                // y'(t) = exp * { -ζω0 (A cos + B sin) + (-A wd sin + B wd cos) }
+                velocity = exp * (
+                    -zeta * w0 * (A * cos + B * sin)
+                    + (-A * wd * sin + B * wd * cos)
+                );
+                position = to + y;
+                return;
+            }
+            // 臨界減衰（ζ == 1）
+            else if (MathF.Abs(zeta - 1.0f) <= 1e-9)
+            {
+                // y(t) = (A + B t) e^{-w0 t}
+                // A = y0
+                // y'(0)=v0 = B - w0 A => B = v0 + w0 A
+                var A = y0;
+                var B = v0 + w0 * A;
+
+                var exp = MathF.Exp(-w0 * t);
+                var y = (A + B * t) * exp;
+
+                // y'(t) = [B - w0(A + Bt)] e^{-w0 t}
+                velocity = (B - w0 * (A + B * t)) * exp;
+                position = to + y;
+                return;
+            }
+            // 過減衰（ζ > 1）
+            else
+            {
+                // y(t) = C1 e^{r1 t} + C2 e^{r2 t}
+                // r1,2 = -w0(ζ ∓ sqrt(ζ^2 - 1))
+                var s = MathF.Sqrt(zeta * zeta - 1.0f);
+                var r1 = -w0 * (zeta - s);
+                var r2 = -w0 * (zeta + s);
+
+                // 初期条件:
+                // y0 = C1 + C2
+                // v0 = r1 C1 + r2 C2
+                // => C1 = (v0 - r2 y0)/(r1 - r2), C2 = y0 - C1
+                var denom = (r1 - r2);
+                if (MathF.Abs(denom) < eps)
+                {
+                    // 数値的にはほぼ臨界なので臨界減衰として扱う
+                    var A = y0;
+                    var B = v0 + w0 * A;
+                    var exp = MathF.Exp(-w0 * t);
+                    var y = (A + B * t) * exp;
+                    velocity = (B - w0 * (A + B * t)) * exp;
+                    position = to + y;
+                    return;
+                }
+
+                var C1 = (v0 - r2 * y0) / denom;
+                var C2 = y0 - C1;
+
+                var e1 = MathF.Exp(r1 * t);
+                var e2 = MathF.Exp(r2 * t);
+                {
+                    var y = C1 * e1 + C2 * e2;
+                    velocity = r1 * C1 * e1 + r2 * C2 * e2;
+
+                    position = to + y;
+                }
+            }
+        }
+        
+        public static void Evaluate(
+            ref float position,
+            ref float velocity,
+            float t,
+            float to,
             float w0,
             float zeta)
         {

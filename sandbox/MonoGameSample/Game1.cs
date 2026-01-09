@@ -95,7 +95,7 @@ public class Game1 : Game
         {
             Position = center,
             Size = 50,
-            Color = Color.Red
+            Color = Color.White
         };
         springState = new Vector2SpringState(springObject.Position, default);
         Follow(springObject);
@@ -367,33 +367,68 @@ public class Game1 : Game
 
     private async void Follow(SimpleSpriteObject obj)
     {
+        var followState = new StrongBox<(SimpleSpriteObject Obj, float TargetPos, bool Held)>();
+        followState.Value.Obj = obj;
+        obj.Position = new Vector2(300, 300);
+
         while (obj.CancellationToken.IsCancellationRequested == false)
         {
-            await new SpringToBuilderEntry<Vector2, Vector2SpringAdapter>(new Vector2SpringAdapter(default,
-                    new SpringConfig
+            await MotionTask.WaitWhile(obj, (o) =>
+            {
+                var mouseState = Mouse.GetState();
+                if (mouseState.LeftButton == ButtonState.Released) return true;
+                return Vector2.Distance(((SimpleSpriteObject)o!).Position, mouseState.PositionVector2) > 30f;
+            });
+            var from = obj.Position.X;
+            var to = obj.Position.X > 400 ? 300 : 500;
+            followState.Value.TargetPos = obj.Position.X > 400 ? 300 : 500;
+            await new SpringBuilderEntry<float, FloatSpringAdapter>(new(from, to,
+                    new SpringConfig(frequency: 10, dampingRatio: 1f)
                     {
-                        Mass = 1,
-                        Stiffness = 100,
-                        Damping = 10,
-                        PositionEpsilon = 1,
-                        VelocityEpsilon = 1f
+                        PositionEpsilon = 0,
+                        VelocityEpsilon = 10
                     }))
-                .Bind(obj, static (o) => o.Position,
-                    static (o, v) => { o.Position = v; }).WithToGetter(
-                    this, static (_) =>
+                .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
+                .WithModifier(
+                    followState, static (box, ref adapter) =>
                     {
-                        var mousePoint = Mouse.GetState().Position;
-                        return new Vector2(mousePoint.X, mousePoint.Y);
-                    }).WithCancellationToken(obj.CancellationToken)
+                        var mouseState = Mouse.GetState();
+                        ref var state = ref box.Value;
+                        ref var held = ref state.Held;
+                        if (mouseState.LeftButton == ButtonState.Pressed)
+                        {
+                            var mouseVec = mouseState.PositionVector2;
+                            if (!held && Vector2.Distance(state.Obj.Position with { X = adapter.Current },
+                                    mouseVec) > 30f)
+                            {
+                                return;
+                            }
+
+                            adapter.Config.Frequency = 40;
+                            adapter.Config.PositionEpsilon = 0;
+                            adapter.To = mouseVec.X;
+                            held = true;
+                        }
+                        else if (held)
+                        {
+                            var targetPos = state.TargetPos;
+                            adapter.Config.Frequency = 10;
+                            adapter.Config.PositionEpsilon = 1;
+                            adapter.To =
+                                Math.Abs(adapter.Current - targetPos) < Math.Abs(adapter.Current - adapter.From)
+                                    ? state.TargetPos
+                                    : adapter.From;
+
+                            held = false;
+                        }
+                    })
+                .WithCancellationToken(obj.CancellationToken)
                 .Schedule();
 
-            while (true)
+            if (Math.Abs(obj.Position.X - to) < Math.Abs(obj.Position.X - from))
             {
-                var mousePoint = Mouse.GetState().Position;
-                var target = new Vector2(mousePoint.X, mousePoint.Y);
-                if (Vector2.Distance(target, obj.Position) > 10f)
-                    break;
-                await obj.TweenRotationTo(MathF.PI * 2, 0.5).WithRelative().Schedule();
+                await obj.TweenRotationTo(MathF.PI / 2, 0.2).WithRelative().Schedule();
+                obj.Color = obj.Position.X < 400 ? Color.White : Color.LimeGreen;
             }
         }
     }
@@ -452,6 +487,11 @@ public class Game1 : Game
                 Color.White);
         }
 
+        spriteBatch.Draw(Texture, new Vector2(400, 0), null,
+            Color.White,
+            0, default, new Vector2(1, 500),
+            SpriteEffects.None, 0.00001f);
+
         // spriteBatch.DrawString(hudFont,
         //     $"Moving: {MoveTweenCount:00}, Deleting: {DeletingCount:00}, Active: {spriteObjects.Count:00}",
         //     new Vector2(0, 50),
@@ -497,6 +537,21 @@ public static class TweenExtensions
                 .Bind(obj, static (obj) => obj.Rotation,
                     static (obj, v) => obj.Rotation = v)
                 .WithCancellationToken(obj.CancellationToken);
+        }
+    }
+}
+
+static class XNAVector2Extensions
+{
+    extension(MouseState state)
+    {
+        public Vector2 PositionVector2
+        {
+            get
+            {
+                var pos = state.Position;
+                return new Vector2(pos.X, pos.Y);
+            }
         }
     }
 }

@@ -1,19 +1,31 @@
+using System;
+
 namespace SpringTasks;
 
-public readonly record struct SpringConfig
+public record struct SpringConfig
 {
-    public SpringConfig(float Stiffness, float Damping, float Mass,float PositionEpsilon = 1f,float VelocityEpsilon = 0.01f)
+    public SpringConfig(float stiffness, float damping, float mass,float positionEpsilon ,float velocityEpsilon)
     {
-        this.Stiffness = Stiffness;
-        this.Damping = Damping;
-        this.Mass = Mass;
-        this.PositionEpsilon = PositionEpsilon;
-        this.VelocityEpsilon = VelocityEpsilon;
+        Frequency = MathF.Sqrt(stiffness / mass); // 自然角周波数
+        DumpingRatio = damping / (2.0f * MathF.Sqrt(stiffness * mass)); // 減衰比
+        this.PositionEpsilon = positionEpsilon;
+        this.VelocityEpsilon = velocityEpsilon;
+    }
+    
+    public SpringConfig(float stiffness, float damping, float mass)
+    {
+        Frequency = MathF.Sqrt(stiffness / mass); // 自然角周波数
+        DumpingRatio = damping / (2.0f * MathF.Sqrt(stiffness * mass)); // 減衰比
+    }
+    
+    public SpringConfig(float frequency, float dampingRatio)
+    {
+        Frequency = frequency;
+        DumpingRatio = dampingRatio; // 減衰比
     }
 
-    public float Stiffness { get; init; }
-    public float Damping { get; init; }
-    public float Mass { get; init; }
-    public float PositionEpsilon { get; init; }
-    public float VelocityEpsilon { get; init; }
+    public float Frequency { get; set; }
+    public float DumpingRatio { get; set; }
+    public required float PositionEpsilon { get; set; }
+    public required float VelocityEpsilon { get; set; }
 }

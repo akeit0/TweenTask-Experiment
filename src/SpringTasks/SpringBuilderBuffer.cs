@@ -17,7 +17,7 @@ internal sealed class SpringBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Spri
     public Action<object?, SpringEvent>? OnEndAction;
     public object? OnEndState;
     public object? ToGetterState;
-    public Func<object, TValue>? ToGetter;
+    public AdapterModifier<TAdapter,object>? Modifier;
     public ushort Version;
     private static TaskPool<SpringBuilderBuffer<TValue, TAdapter>> taskPool;
     private SpringBuilderBuffer<TValue, TAdapter>? next;
@@ -47,7 +47,7 @@ internal sealed class SpringBuilderBuffer<TValue, TAdapter> : ITaskPoolNode<Spri
     {
         ApplyAdapterState();
         Flags.ClearFlags(SpringTaskSettingFlags.IsRelative);
-        var promise = SpringPromise<TValue, TAdapter>.Create(Adapter, SetCallback, GetSetState, ToGetter, ToGetterState,
+        var promise = SpringPromise<TValue, TAdapter>.Create(Adapter, SetCallback, GetSetState, Modifier, ToGetterState,
             OnEndAction, OnEndState,
             CancellationToken, (SpringTaskSettingFlags)Flags.Flags,
             out token);

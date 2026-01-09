@@ -11,8 +11,8 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
 {
     private static TaskPool<SpringPromise<T, TAdapter>> pool;
     private Action<object?, T>? action;
-    private object? gettterState;
-    private Func<object?, T>? toGetter;
+    private object? modifierState;
+    private AdapterModifier<TAdapter,object?>? modifier;
     private TAdapter adapter = default!;
 
     private SpringPromise<T, TAdapter>? next;
@@ -21,7 +21,7 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
 
     public static SpringPromise<T, TAdapter> Create(
         TAdapter adapter,
-        Action<object?, T>? action,  object? state,Func<object?, T>? toGetter, object?getterState,
+        Action<object?, T>? action,  object? state,AdapterModifier<TAdapter,object?>? modifier, object?modifierState,
         Action<object?, SpringEvent>? endCallback, object? endState,
         CancellationToken cancellationToken, SpringTaskSettingFlags flags, out short token)
     {
@@ -31,8 +31,8 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
         }
 
         promise.action = action;
-        promise.gettterState = getterState;
-        promise.toGetter = toGetter;
+        promise.modifierState = modifierState;
+        promise.modifier = modifier;
         promise.State = state;
         promise.EventCallback = endCallback;
         promise.EventState = endState;
@@ -58,9 +58,9 @@ internal class SpringPromise<T, TAdapter> : SpringPromise, IFrameDeltaTimeProvid
             return false;
         }
 
-        if (toGetter != null)
+        if (modifier != null)
         {
-            adapter.ApplyTo(toGetter(gettterState)!);
+            modifier( modifierState!, ref adapter);
         }
 
         try
