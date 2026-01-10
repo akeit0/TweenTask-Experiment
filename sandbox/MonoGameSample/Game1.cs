@@ -378,17 +378,17 @@ public class Game1 : Game
                 {
                     var mouseState = Mouse.GetState();
                     if (mouseState.LeftButton == ButtonState.Released) return true;
-                    return Vector2.Distance(((SimpleSpriteObject)o!).Position, mouseState.PositionVector2) > 30f;
+                    return Vector2.Distance(o.Position, mouseState.PositionVector2) > 30f;
                 });
                 var from = obj.Position.X;
                 var to = obj.Position.X > 400 ? 300 : 500;
                 followState.Value.TargetPos = obj.Position.X > 400 ? 300 : 500;
-                await new SpringBuilderEntry<float, FloatSpringAdapter>(new(from, to,
+                await SpringTask.Create(from, to,
                         new SpringConfig(frequency: 20, dampingRatio: 1f)
                         {
-                            PositionEpsilon = 0,
+                            PositionEpsilon = 1,
                             VelocityEpsilon = 10
-                        }))
+                        })
                     .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
                     .WithModifier(
                         followState, static (box, ref adapter) =>
@@ -405,9 +405,9 @@ public class Game1 : Game
                                     return;
                                 }
 
-                                adapter.Config.Frequency = 40;
+                                adapter.Config.Frequency = 80;
                                 adapter.Config.PositionEpsilon = 0;
-                                adapter.To = Math.Clamp(mouseVec.X,300,500);
+                                adapter.To = Math.Clamp(mouseVec.X, 300, 500);
                                 held = true;
                             }
                             else if (held)
@@ -429,12 +429,12 @@ public class Game1 : Game
                 if (Math.Abs(obj.Position.X - to) < Math.Abs(obj.Position.X - from))
                 {
                     obj.Color = obj.Position.X < 400 ? Color.White : Color.LimeGreen;
-                    await new SpringBuilderEntry<float, FloatSpringAdapter>(new(to, to,
-                            new SpringConfig(frequency: 80, dampingRatio: 0.3f)
+                    await SpringTask.Create(to, to, velocity: 500, config:
+                            new(frequency: 70, dampingRatio: 0.3f)
                             {
                                 PositionEpsilon = 1,
                                 VelocityEpsilon = 10
-                            }) { Velocity = 500 })
+                            })
                         .Bind(obj, static (o, v) => o.Position = o.Position with { X = v })
                         .WithCancellationToken(obj.CancellationToken)
                         .Schedule();

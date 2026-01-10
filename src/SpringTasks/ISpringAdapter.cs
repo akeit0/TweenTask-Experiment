@@ -3,7 +3,8 @@ using System.Numerics;
 
 namespace SpringTasks;
 
-public delegate void AdapterModifier<T, in TState>(TState state,ref T adapter) where TState : class?;
+public delegate void AdapterModifier<T, in TState>(TState state, ref T adapter) where TState : class?;
+
 public interface ISpringAdapter<T>
 {
     T Evaluate(double deltaTime);
@@ -16,7 +17,6 @@ public interface ISpringAdapter<T>
     }
 
     void ApplyTo(T to);
-
 }
 
 public interface ISpringAdapter<in TOption, T> : ISpringAdapter<T>
@@ -40,7 +40,12 @@ public struct Vector2SpringAdapter(Vector2 from, Vector2 to, SpringConfig config
 
     public Vector2 Evaluate(double deltaTime)
     {
-        SpringAnimation.Evaluate(ref Current, ref Velocity, (float)deltaTime, To, Config.Frequency, Config.DumpingRatio);
+        var current = Current - To;
+        SpringAnimation.Evaluate((float)deltaTime, Config.Frequency, Config.DumpingRatio, out var pospos,
+            out var posVel, out var velPos, out var velVel);
+
+        Current = To + current * pospos + Velocity * posVel;
+        Velocity = current * velPos + Velocity * velVel;
 
         return Current;
     }
@@ -53,7 +58,7 @@ public struct Vector2SpringAdapter(Vector2 from, Vector2 to, SpringConfig config
     }
 
     public bool IsCompleted =>
-        Vector2.DistanceSquared(Current, To) <Config.PositionEpsilon * MathF.Abs(Config.PositionEpsilon)
+        Vector2.DistanceSquared(Current, To) < Config.PositionEpsilon * MathF.Abs(Config.PositionEpsilon)
         && (Velocity.LengthSquared()) < Config.VelocityEpsilon * Config.VelocityEpsilon;
 
     public void ApplyFrom(Vector2 from, bool isRelative)
@@ -65,12 +70,64 @@ public struct Vector2SpringAdapter(Vector2 from, Vector2 to, SpringConfig config
             To += from;
         }
     }
+
     public void ApplyTo(Vector2 to)
     {
         To = to;
     }
 }
+public struct Vector3SpringAdapter(Vector3 from, Vector3 to, SpringConfig config)
+    : ISpringFromAdapter<Vector3>
+{
+    public Vector3 From = from;
+    Vector3 ISpringAdapter<Vector3>.From => From;
+    public Vector3 To = to;
+    public Vector3 Velocity;
+    public Vector3 Current = from;
+    public SpringConfig Config = config;
 
+    public Vector3SpringAdapter(Vector3 to, SpringConfig config) : this(default, to, config)
+    {
+    }
+
+    public Vector3 Evaluate(double deltaTime)
+    {
+        var current = Current - To;
+        SpringAnimation.Evaluate((float)deltaTime, Config.Frequency, Config.DumpingRatio, out var pospos,
+            out var posVel, out var velPos, out var velVel);
+
+        Current = To + current * pospos + Velocity * posVel;
+        Velocity = current * velPos + Velocity * velVel;
+
+        return Current;
+    }
+
+    public Vector3 Complete()
+    {
+        From = To;
+        Velocity = Vector3.Zero;
+        return From;
+    }
+
+    public bool IsCompleted =>
+        Vector3.DistanceSquared(Current, To) < Config.PositionEpsilon * MathF.Abs(Config.PositionEpsilon)
+        && (Velocity.LengthSquared()) < Config.VelocityEpsilon * Config.VelocityEpsilon;
+
+    public void ApplyFrom(Vector3 from, bool isRelative)
+    {
+        From = from;
+        Current = from;
+        if (isRelative)
+        {
+            To += from;
+        }
+    }
+
+    public void ApplyTo(Vector3 to)
+    {
+        To = to;
+    }
+}
 public struct FloatSpringAdapter(float from, float to, SpringConfig config)
     : ISpringFromAdapter<float>
 {
@@ -87,7 +144,15 @@ public struct FloatSpringAdapter(float from, float to, SpringConfig config)
 
     public float Evaluate(double deltaTime)
     {
-        SpringAnimation.Evaluate(ref Current, ref Velocity, (float)deltaTime, To, Config.Frequency, Config.DumpingRatio);
+        var current = Current - To;
+        SpringAnimation.Evaluate((float)deltaTime, Config.Frequency, Config.DumpingRatio, out var pospos,
+            out var posVel, out var velPos, out var velVel);
+
+        Current = To + current * pospos + Velocity * posVel;
+        Velocity = current * velPos + Velocity * velVel;
+
+
+        //SpringAnimation.Evaluate(ref Current, ref Velocity, (float)deltaTime, To, Config.Frequency, Config.DumpingRatio);
 
         return Current;
     }
@@ -100,8 +165,8 @@ public struct FloatSpringAdapter(float from, float to, SpringConfig config)
     }
 
     public bool IsCompleted =>
-        MathF.Abs(Current- To) <Config.PositionEpsilon 
-        && (MathF.Abs(Velocity)) <  Config.VelocityEpsilon;
+        MathF.Abs(Current - To) < Config.PositionEpsilon
+        && (MathF.Abs(Velocity)) < Config.VelocityEpsilon;
 
     public void ApplyFrom(float from, bool isRelative)
     {
@@ -112,6 +177,7 @@ public struct FloatSpringAdapter(float from, float to, SpringConfig config)
             To += from;
         }
     }
+
     public void ApplyTo(float to)
     {
         To = to;
