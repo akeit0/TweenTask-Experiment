@@ -407,7 +407,7 @@ public class Game1 : Game
 
                                 adapter.Config.Frequency = 40;
                                 adapter.Config.PositionEpsilon = 0;
-                                adapter.To = mouseVec.X;
+                                adapter.To = Math.Clamp(mouseVec.X,300,500);
                                 held = true;
                             }
                             else if (held)

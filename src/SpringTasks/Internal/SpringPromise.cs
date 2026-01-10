@@ -12,6 +12,7 @@ internal abstract class SpringPromise : IValueTaskSource, IReturnable
     protected Action<object?, SpringEvent>? EventCallback;
     protected object? EventState;
     public double PlaybackSpeed;
+    public LoopType LoopType;
     protected object? State;
 
     public bool IsPreserved

@@ -1,4 +1,4 @@
-namespace TweenTasks;
+namespace MotionTasks;
 
 public enum LoopType : byte
 {

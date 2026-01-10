@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using MotionTasks;
 using TweenTasks.Internal;
 
 namespace TweenTasks;
